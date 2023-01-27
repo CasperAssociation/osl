@@ -32,7 +32,6 @@ where
 
 import qualified Algebra.Additive as Group
 import qualified Algebra.Ring as Ring
-import Basement.Types.Word128 (Word128 (Word128))
 import Cast
   ( integerToWord64,
     word64ToInteger,
@@ -46,6 +45,7 @@ import Data.Kind (Type)
 import Data.Maybe (fromMaybe)
 import Data.Ratio (denominator, numerator)
 import Data.Text (pack)
+import Data.DoubleWord (Word128 (Word128))
 import Data.Word (Word64)
 import Die (die)
 import GHC.Generics (Generic)
