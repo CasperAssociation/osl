@@ -35,7 +35,7 @@
     , validity-src
     , ...
     }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" ] (system:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system:
     let
       pkgs = import nixpkgs { inherit system; };
       lintPkgs = import lint-utils.inputs.nixpkgs { inherit system; };
