@@ -31,7 +31,7 @@ import OSL.ValidContext (getDeclaration)
 import OSL.ValidateContext (validateContext)
 import Semicircuit.Gensyms (deBruijnToGensyms)
 import Semicircuit.PNFFormula (toPNFFormula, toSemicircuit)
-import Semicircuit.PrenexNormalForm (toPrenexNormalForm, toStrongPrenexNormalForm, toSuperStrongPrenexNormalForm)
+import Semicircuit.PrenexNormalForm (toPrenexNormalForm, toStrongPrenexNormalForm)
 import Semicircuit.Sigma11 (prependQuantifiers)
 import Semicircuit.ToLogicCircuit (semicircuitToLogicCircuit)
 import System.Environment (getArgs)
@@ -77,7 +77,7 @@ runMain (FileName fileName) (TargetName targetName) compileToCircuit = do
         (TargetName targetName)
         (Source source) -- TODO: specify BitsPerByte and RowCount with options
         (BitsPerByte 8)
-        (RowCount 600)
+        (RowCount 81)
         compileToCircuit of
         Left (ErrorMessage err) -> pure (Output err)
         Right (SuccessfulOutput result) -> pure (Output result)
@@ -128,10 +128,10 @@ calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte
           spnf <-
             mapLeft (ErrorMessage . ("Error converting to strong prenex normal form: " <>) . show) $
               uncurry (toStrongPrenexNormalForm ()) pnf
-          let sspnf = uncurry toSuperStrongPrenexNormalForm spnf
+          -- let sspnf = uncurry toSuperStrongPrenexNormalForm spnf
           pnff <-
             mapLeft (ErrorMessage . ("Error converting to PNF formula: " <>) . show) $
-              toPNFFormula () (uncurry prependQuantifiers sspnf)
+              toPNFFormula () (uncurry prependQuantifiers spnf)
           let semi = toSemicircuit pnff
               (logic, layout) = semicircuitToLogicCircuit rowCount semi
               traceLayout = getMapping 8 logic
@@ -150,8 +150,8 @@ calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte
               <> show pnf
               <> "\n\nStrong prenex normal form: "
               <> show spnf
-              <> "\n\nSuper strong prenex normal form: "
-              <> show sspnf
+              -- <> "\n\nSuper strong prenex normal form: "
+              -- <> show sspnf
               <> "\n\nPNF formula: "
               <> show pnff
               <> "\n\nSemicircuit: "

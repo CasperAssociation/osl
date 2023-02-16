@@ -241,14 +241,14 @@ toLogicCircuit c name argumentForm argument = do
     mapLeft
       (\(ErrorMessage _ msg) -> ErrorMessage Nothing ("toStrongPrenexNormalForm: " <> msg))
       (toStrongPrenexNormalForm Nothing qs qff)
-  let (qs'', qff'') = toSuperStrongPrenexNormalForm qs' qff'
-      translated''' = S11.prependQuantifiers qs'' qff''
+  -- let (qs'', qff'') = toSuperStrongPrenexNormalForm qs' qff'
+  let translated''' = S11.prependQuantifiers qs' qff'
   pnff <-
     mapLeft
       (\(ErrorMessage _ msg) -> ErrorMessage Nothing ("toPNFFormula: " <> msg))
       (toPNFFormula () translated''')
   let semi = toSemicircuit pnff
-      rowCount = RowCount 600 -- TODO: calculate or pass this in
+      rowCount = RowCount 81 -- TODO: calculate or pass this in
       (logic, layout) = semicircuitToLogicCircuit rowCount semi
   s11arg <-
     mapLeft
@@ -262,12 +262,13 @@ toLogicCircuit c name argumentForm argument = do
     mapLeft
       (\(ErrorMessage () msg) -> ErrorMessage Nothing ("witnessToStrongPrenexNormalForm: " <> msg))
       (witnessToStrongPrenexNormalForm () mempty qs s11witness')
-  s11witness''' <-
-    mapLeft
-      (\(ErrorMessage () msg) -> ErrorMessage Nothing ("witnessToSuperStrongPrenexNormalForm: " <> msg))
-      (witnessToSuperStrongPrenexNormalForm () qs' s11witness'')
-  let s11statement' = statementToSuperStrongPrenexNormalForm (s11arg ^. #statement)
-      s11arg' = S11.Argument s11statement' s11witness'''
+  -- s11witness''' <-
+  --   mapLeft
+  --     (\(ErrorMessage () msg) -> ErrorMessage Nothing ("witnessToSuperStrongPrenexNormalForm: " <> msg))
+  --     (witnessToSuperStrongPrenexNormalForm () qs' s11witness'')
+  -- let s11statement' = statementToSuperStrongPrenexNormalForm (s11arg ^. #statement)
+  --     s11arg' = S11.Argument s11statement' s11witness'''
+  let s11arg' = S11.Argument (s11arg ^. #statement) s11witness''
   lcArg <-
     mapLeft
       (\(ErrorMessage () msg) -> ErrorMessage Nothing ("semicircuitArgumentToLogicCircuit: " <> msg))
