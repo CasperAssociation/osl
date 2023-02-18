@@ -31,12 +31,13 @@ import OSL.ValidContext (getDeclaration)
 import OSL.ValidateContext (validateContext)
 import Semicircuit.Gensyms (deBruijnToGensyms)
 import Semicircuit.PNFFormula (toPNFFormula, toSemicircuit)
-import Semicircuit.PrenexNormalForm (toPrenexNormalForm, toStrongPrenexNormalForm, toSuperStrongPrenexNormalForm)
+import Semicircuit.PrenexNormalForm (toPrenexNormalForm, toStrongPrenexNormalForm)
 import Semicircuit.Sigma11 (prependQuantifiers)
 import Semicircuit.ToLogicCircuit (semicircuitToLogicCircuit)
 import System.Environment (getArgs)
 import Trace.FromLogicCircuit (getMapping, logicCircuitToTraceType)
 import Trace.Metrics (getTraceTypeMetrics)
+import Trace.ToArithmeticAIR (mappings)
 import Trace.ToArithmeticCircuit (traceTypeToArithmeticCircuit)
 import Prelude hiding (readFile)
 
@@ -76,7 +77,7 @@ runMain (FileName fileName) (TargetName targetName) compileToCircuit = do
         (TargetName targetName)
         (Source source) -- TODO: specify BitsPerByte and RowCount with options
         (BitsPerByte 8)
-        (RowCount 600)
+        (RowCount 81)
         compileToCircuit of
         Left (ErrorMessage err) -> pure (Output err)
         Right (SuccessfulOutput result) -> pure (Output result)
@@ -127,15 +128,16 @@ calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte
           spnf <-
             mapLeft (ErrorMessage . ("Error converting to strong prenex normal form: " <>) . show) $
               uncurry (toStrongPrenexNormalForm ()) pnf
-          let sspnf = uncurry toSuperStrongPrenexNormalForm spnf
+          -- let sspnf = uncurry toSuperStrongPrenexNormalForm spnf
           pnff <-
             mapLeft (ErrorMessage . ("Error converting to PNF formula: " <>) . show) $
-              toPNFFormula () (uncurry prependQuantifiers sspnf)
+              toPNFFormula () (uncurry prependQuantifiers spnf)
           let semi = toSemicircuit pnff
               (logic, layout) = semicircuitToLogicCircuit rowCount semi
               traceLayout = getMapping 8 logic
               traceType = logicCircuitToTraceType bitsPerByte logic
-              circuit = traceTypeToArithmeticCircuit traceType
+              circuitLayout = mappings traceType traceLayout
+              circuit = traceTypeToArithmeticCircuit traceType traceLayout
               circuitMetrics = getCircuitMetrics circuit
               traceTypeMetrics = getTraceTypeMetrics traceType
           pure . SuccessfulOutput $
@@ -148,8 +150,8 @@ calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte
               <> show pnf
               <> "\n\nStrong prenex normal form: "
               <> show spnf
-              <> "\n\nSuper strong prenex normal form: "
-              <> show sspnf
+              -- <> "\n\nSuper strong prenex normal form: "
+              -- <> show sspnf
               <> "\n\nPNF formula: "
               <> show pnff
               <> "\n\nSemicircuit: "
@@ -162,6 +164,8 @@ calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte
               <> show traceLayout
               <> "\n\nTrace type: "
               <> show traceType
+              <> "\n\nArithmetic circuit layout:\n"
+              <> show circuitLayout
               <> "\n\nArithmetic circuit:\n"
               <> show circuit
     _ -> Left . ErrorMessage $ "please provide the name of a defined term"
