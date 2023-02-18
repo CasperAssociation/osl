@@ -230,14 +230,11 @@ mkDataToAddOSL nameStr = do
                 ( Map.fromList $(ctorsContextEntries ctors c) <>
                 
                   Map.fromList $(ctorsProjEntries ctors c) <>
+                  Map.fromList $(ctorsInjEntries ctors nameStr) <>
                   
                   Map.singleton
                     $(pure (LitE (StringL nameStr)))
-                    (OSL.Data $(ctorsCoproduct ctors)) <>
-                    
-                  Map.singleton
-                    $(pure (LitE (StringL "Dummy")))
-                    (OSL.Defined (OSL.Z ()) (OSL.ConstZ () 1))
+                    (OSL.Data $(ctorsCoproduct ctors))
                 )
 
         instance ToOSLType $(pure (ConT name)) where
@@ -287,7 +284,7 @@ mkDataToAddOSL nameStr = do
       | i > 2 = 
         ((\p -> [| OSL.Apply () (OSL.Pi1 ()) . $(p) |]) <$> mkProjections (i - 1))
         <> [ [| \n -> (OSL.Apply () (OSL.Pi2 ()) n) |] ]
-    mkProjections _ = (die $ "mkProjections: expected more than two arguments")
+    mkProjections _ = (die $ "mkProjections: expected more than one argument")
 
     ctorsProjEntries [ctor@(RecC _ ts)] c | length ts >= 2 =
       ListE
@@ -307,11 +304,40 @@ mkDataToAddOSL nameStr = do
               )
               |]
             | let cName = ctorName ctor,
-              --let projs = mkProjections () (OSL.GenSym 0) (OSL.Sym (pack $ nameBase cName)) (length ts),
-              --((argNam, _, argTyp), fun) <- zip ts projs
               ((argNam, _, argTyp), fun) <- zip ts (mkProjections (length ts))
           ]
     ctorsProjEntries _ _ = return $ ListE []
+
+    mkInjections i 
+      | i == 2 = 
+        [ [| \n -> (OSL.Apply () (OSL.Iota1 ()) n) |]
+        , [| \n -> (OSL.Apply () (OSL.Iota2 ()) n) |] ]
+      | i > 2 = 
+        ((\p -> [| OSL.Apply () (OSL.Iota1 ()) . $(p) |]) <$> mkInjections (i - 1))
+        <> [ [| \n -> (OSL.Apply () (OSL.Iota2 ()) n) |] ]
+    mkInjections _ = (die $ "mkInjections: expected more than one case")
+
+    ctorsInjEntries ctors typName | length ctors >= 2 =
+      ListE
+        <$> sequence
+          [ [|
+              ( $(pure (LitE (StringL (nameBase cName <> "_inj")))),
+                OSL.Defined
+                  ( OSL.F () Nothing 
+                      (OSL.NamedType () $(pure (LitE (StringL (nameBase cName)))))
+                      (OSL.NamedType () $(pure (LitE (StringL typName))))
+                  )
+                  ( OSL.Lambda () (OSL.Sym "x") 
+                      (OSL.NamedType () $(pure (LitE (StringL (nameBase cName)))))
+                      (OSL.Apply () (OSL.To () $(pure (LitE (StringL typName)))) ($(fun) (OSL.NamedTerm () (OSL.Sym "x") )))
+                  )
+              )
+              |]
+            | (ctor, fun) <- zip ctors (mkInjections (length ctors)),
+              let cName = ctorName ctor
+              --let typName = "Dummy"
+          ]
+    ctorsInjEntries _ _ = return $ ListE []
 
     ctorsCoproduct ctors =
       [|
