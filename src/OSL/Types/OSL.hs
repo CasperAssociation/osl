@@ -159,7 +159,83 @@ data Term ann
   | ForSome ann Name (Type ann) (Maybe (Bound ann)) (Term ann)
   | Top ann
   | Bottom ann
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
+
+instance Show (Term ann) where
+  show (NamedTerm _ name) = show name
+  show (AddN _) = "+N"
+  show (MulN _) = "*N"
+  show (ConstN _ int) = show int <> "N"
+  show (AddZ _) = "+Z"
+  show (MulZ _) = "*Z"
+  show (ConstZ _ int) = show int <> "Z"
+  show (ConstFp _ int) = show int <> "F"
+  show (AddFp _) = "+F"
+  show (MulFp _) = "*F"
+  show (Cast _) = "cast"
+  show (ConstFin _ int) = "fin(" <> show int <> ")"
+  show (ConstF _ _) = ""
+  show (ConstSet _ _) = ""
+  show (Inverse _) = "inverse"
+  show (Pair _) = ""
+  show (Pi1 _) = "pi1"
+  show (Pi2 _) = "pi2"
+  show (Iota1 _) = "iota1"
+  show (Iota2 _) = "iota2"
+  show (FunctionProduct _ trm1 trm2) = "(" <> show trm1 <> " × " <> show trm2 <> ")"
+  show (FunctionCoproduct _ trm1 trm2) = "(" <> show trm1 <> " ⊕ " <> show trm2 <> ")"
+  show (Lambda _ name typ trm) = "\\" <> show name <> " : " <> show typ <> " => " <> show trm
+  show (Apply _ trm1 trm2) = show trm1 <> "(" <> show trm2 <> ")"
+  show (To _ name) = "to(" <> show name <> ")"
+  show (From _ name) = "from(" <> show name <> ")"
+  show (Let _ name typ trm1 trm2) = "let " <> show name <> " : " <> show typ <> " := " <> show trm1 <> "; " <> show trm2
+  show (IsNothing _) = "isNothing"
+  show (Just' _) = "just"
+  show (Nothing' _) = "nothing"
+  show (Maybe' _ trm) = "maybe(" <> show trm <> ")"
+  show (MaybePi1 _) = "pi1"
+  show (MaybePi2 _) = "pi2"
+  show (MaybeTo _ name) = "to(" <> show name <> ")"
+  show (MaybeFrom _ name) = "from(" <> show name <> ")"
+  show (MaxN _) = "maxN"
+  show (MaxZ _) = "maxZ"
+  show (MaxFp _) = "maxF"
+  show (Exists _) = "exists"
+  show (Length _) = "length"
+  show (Nth _) = "nth"
+  show (ListCast _) = "cast"
+  show (ListPi1 _) = "pi1"
+  show (ListPi2 _) = "pi2"
+  show (ListTo _ name) = "to(" <> show name <> ")"
+  show (ListFrom _ name) = "from(" <> show name <> ")"
+  show (ListLength _) = "length"
+  show (ListMaybePi1 _) = "pi1"
+  show (ListMaybePi2 _) = "pi2"
+  show (ListMaybeLength _) = "length"
+  show (ListMaybeFrom _ name) = "to(" <> show name <> ")"
+  show (ListMaybeTo _ name) = "from(" <> show name <> ")"
+  show (Sum _) = "sum"
+  show (Lookup _) = "lookup"
+  show (Keys _) = "keys"
+  show (MapPi1 _) = "pi1"
+  show (MapPi2 _) = "pi2"
+  show (MapTo _ name) = "to(" <> show name <> ")"
+  show (MapFrom _ name) = "from(" <> show name <> ")"
+  show (SumMapLength _) = ""
+  show (SumListLookup _ _) = ""
+  show (Equal _ trm1 trm2) = "(" <> show trm1 <> " = " <> show trm2 <> ")"
+  show (LessOrEqual _ trm1 trm2) = "(" <> show trm1 <> " <= " <> show trm2 <> ")"
+  show (And _ trm1 trm2) = "(" <> show trm1 <> " & " <> show trm2 <> ")"
+  show (Or _ trm1 trm2) = "(" <> show trm1 <> " | " <> show trm2 <> ")"
+  show (Not _ trm1) = "!" <> show trm1
+  show (Implies _ trm1 trm2) = "(" <> show trm1 <> " -> " <> show trm2 <> ")"
+  show (Iff _ trm1 trm2) = "(" <> show trm1 <> " <-> " <> show trm2 <> ")"
+  show (ForAll _ name typ Nothing trm) = "all " <> show name <> " : " <> show typ <> ", " <> show trm
+  show (ForAll _ name typ (Just bnd) trm) = "all " <> show name <> " : " <> show typ <> " < " <> show bnd <> ", " <> show trm
+  show (ForSome _ name typ Nothing trm) = "some " <> show name <> " : " <> show typ <> ", " <> show trm
+  show (ForSome _ name typ (Just bnd) trm) = "some " <> show name <> " : " <> show typ <> " < " <> show bnd <> ", " <> show trm
+  show (Top _) = "⊤" -- Is there a non-unicode alternative?
+  show (Bottom _) = "⊥" -- Is there a non-unicode alternative?
 
 data Quantifier ann
   = ForAll' ann Name (Type ann) (Maybe (Bound ann))
@@ -176,7 +252,18 @@ data Bound ann
   | MaybeBound ann (ValuesBound ann)
   | MapBound ann (KeysBound ann) (ValuesBound ann)
   | ToBound ann Name (Bound ann)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
+
+instance Show (Bound ann) where
+  show (ScalarBound _ trm) = show trm
+  show (FieldMaxBound _) = "MAX"
+  show (ProductBound _ lb rb) = "(" <> show lb <> " × " <> show rb <> ")"
+  show (CoproductBound _ lb rb) = "(" <> show lb <> " ⊕ " <> show rb <> ")"
+  show (FunctionBound _ _ _) = ""
+  show (ListBound _ _) = ""
+  show (MaybeBound _ _) = ""
+  show (MapBound _ _ _) = ""
+  show (ToBound _ name bnd) = "to(" <> show name <> ")(" <> show bnd <> ")"
 
 newtype LeftBound ann = LeftBound {unLeftBound :: Bound ann}
   deriving (Eq, Ord, Show)

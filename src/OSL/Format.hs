@@ -31,4 +31,4 @@ formatDeclaration nm =
   \case
     Data a -> "data " <> show nm <> " ≅ " <> show a <> "."
     FreeVariable a -> show nm <> " : " <> show a <> "."
-    Defined {} -> die "formatContext: unsupported: defined terms"
+    Defined a b -> "def " <> show nm <> " : " <> show a <> " := " <> show b <> "."

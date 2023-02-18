@@ -136,7 +136,7 @@ class AddToOSLContext a where
     Proxy a ->
     OSL.ValidContext 'OSL.Global () ->
     OSL.ValidContext 'OSL.Global ()
-
+    
 -- newtypes
 data Newtype a
 
@@ -167,7 +167,7 @@ productType (t : ts) = foldl' (OSL.Product ()) t ts
 coproductType :: [OSL.Type ()] -> OSL.Type ()
 coproductType [] = OSL.Fin () 0
 coproductType (t : ts) = foldl' (OSL.Coproduct ()) t ts
-
+ 
 mkDataToOSL :: String -> Q [Dec]
 mkDataToOSL nameStr = do
   name <-
@@ -227,10 +227,17 @@ mkDataToAddOSL nameStr = do
           addToOSLContext _ $(pure (VarP c)) =
             $(pure (VarE c))
               <> OSL.ValidContext
-                ( Map.fromList $(ctorsContextEntries ctors c)
-                    <> Map.singleton
-                      $(pure (LitE (StringL nameStr)))
-                      (OSL.Data $(ctorsCoproduct ctors))
+                ( Map.fromList $(ctorsContextEntries ctors c) <>
+                
+                  Map.fromList $(ctorsProjEntries ctors c) <>
+                  
+                  Map.singleton
+                    $(pure (LitE (StringL nameStr)))
+                    (OSL.Data $(ctorsCoproduct ctors)) <>
+                    
+                  Map.singleton
+                    $(pure (LitE (StringL "Dummy")))
+                    (OSL.Defined (OSL.Z ()) (OSL.ConstZ () 1))
                 )
 
         instance ToOSLType $(pure (ConT name)) where
@@ -272,6 +279,39 @@ mkDataToAddOSL nameStr = do
                           ts
                       [] -> TupleT 0
           ]
+
+    mkProjections i 
+      | i == 2 = 
+        [ [| \n -> (OSL.Apply () (OSL.Pi1 ()) n) |]
+        , [| \n -> (OSL.Apply () (OSL.Pi2 ()) n) |] ]
+      | i > 2 = 
+        ((\p -> [| OSL.Apply () (OSL.Pi1 ()) . $(p) |]) <$> mkProjections (i - 1))
+        <> [ [| \n -> (OSL.Apply () (OSL.Pi2 ()) n) |] ]
+    mkProjections _ = (die $ "mkProjections: expected more than two arguments")
+
+    ctorsProjEntries [ctor@(RecC _ ts)] c | length ts >= 2 =
+      ListE
+        <$> sequence
+          [ [|
+              ( $(pure (LitE (StringL (nameBase argNam)))),
+                OSL.Defined
+                  ( OSL.F () Nothing (OSL.NamedType () $(pure (LitE (StringL (nameBase cName)))))
+                    (toOSLType
+                      (Proxy :: Proxy $(pure argTyp))
+                      $(pure (VarE c)))
+                  )
+                  ( OSL.Lambda () (OSL.Sym "x") 
+                      (OSL.NamedType () $(pure (LitE (StringL (nameBase cName)))))
+                      ($(fun) (OSL.Apply () (OSL.From () $(pure (LitE (StringL (nameBase cName))))) (OSL.NamedTerm () (OSL.Sym "x") )))
+                  ) 
+              )
+              |]
+            | let cName = ctorName ctor,
+              --let projs = mkProjections () (OSL.GenSym 0) (OSL.Sym (pack $ nameBase cName)) (length ts),
+              --((argNam, _, argTyp), fun) <- zip ts projs
+              ((argNam, _, argTyp), fun) <- zip ts (mkProjections (length ts))
+          ]
+    ctorsProjEntries _ _ = return $ ListE []
 
     ctorsCoproduct ctors =
       [|
