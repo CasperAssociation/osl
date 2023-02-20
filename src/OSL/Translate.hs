@@ -1383,7 +1383,6 @@ translateToFormula gc lc@(TranslationContext decls mappings) t = do
           "expected a term denoting a Prop"
 
 mappingToTerm ::
-  Show ann =>
   ann ->
   Mapping ann S11.Term ->
   Either (ErrorMessage ann) S11.Term
