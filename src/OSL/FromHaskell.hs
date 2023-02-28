@@ -277,13 +277,13 @@ mkDataToAddOSL nameStr = do
 
     mkProjections i
       | i == 2 =
-        [ [|\n -> (OSL.Apply () (OSL.Pi1 ()) n)|],
-          [|\n -> (OSL.Apply () (OSL.Pi2 ()) n)|]
+        [ [|OSL.Apply () (OSL.Pi1 ())|],
+          [|OSL.Apply () (OSL.Pi2 ())|]
         ]
       | i > 2 =
         ((\p -> [|OSL.Apply () (OSL.Pi1 ()) . $(p)|]) <$> mkProjections (i - 1))
-          <> [[|\n -> (OSL.Apply () (OSL.Pi2 ()) n)|]]
-    mkProjections _ = (die $ "mkProjections: expected more than one argument")
+          <> [[|OSL.Apply () (OSL.Pi2 ())|]]
+    mkProjections _ = die "mkProjections: expected more than one argument"
 
     ctorsProjEntries [ctor@(RecC _ ts)] c
       | length ts >= 2 =
@@ -312,17 +312,17 @@ mkDataToAddOSL nameStr = do
               | let cName = ctorName ctor,
                 ((argNam, _, argTyp), fun) <- zip ts (mkProjections (length ts))
             ]
-    ctorsProjEntries _ _ = return $ ListE []
+    ctorsProjEntries _ _ = pure $ ListE []
 
     mkInjections i
       | i == 2 =
-        [ [|\n -> (OSL.Apply () (OSL.Iota1 ()) n)|],
-          [|\n -> (OSL.Apply () (OSL.Iota2 ()) n)|]
+        [ [|OSL.Apply () (OSL.Iota1 ())|],
+          [|OSL.Apply () (OSL.Iota2 ())|]
         ]
       | i > 2 =
         ((\p -> [|OSL.Apply () (OSL.Iota1 ()) . $(p)|]) <$> mkInjections (i - 1))
-          <> [[|\n -> (OSL.Apply () (OSL.Iota2 ()) n)|]]
-    mkInjections _ = (die $ "mkInjections: expected more than one case")
+          <> [[|OSL.Apply () (OSL.Iota2 ())|]]
+    mkInjections _ = die "mkInjections: expected more than one case"
 
     ctorsInjEntries ctors typName
       | length ctors >= 2 =
@@ -349,7 +349,7 @@ mkDataToAddOSL nameStr = do
                 let cName = ctorName ctor
                 --let typName = "Dummy"
             ]
-    ctorsInjEntries _ _ = return $ ListE []
+    ctorsInjEntries _ _ = pure $ ListE []
 
     ctorsCoproduct ctors =
       [|
