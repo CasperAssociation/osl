@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 module OSL.EntryPoint
   ( main,
@@ -11,6 +12,7 @@ module OSL.EntryPoint
   )
 where
 
+import Control.Lens ((^.))
 import Control.Monad.Trans.State.Strict (runStateT)
 import Data.ByteString (readFile)
 import Data.Either.Extra (mapLeft)
@@ -19,6 +21,7 @@ import Data.Text.Encoding (decodeUtf8')
 import Halo2.CircuitMetrics (getCircuitMetrics)
 import Halo2.Codegen (generateProject)
 import Halo2.Types.BitsPerByte (BitsPerByte (BitsPerByte))
+import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.RowCount (RowCount (RowCount))
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import OSL.ActusDictionary (actusDictionaryFormatted)
@@ -27,6 +30,7 @@ import OSL.Parse (parseContext)
 import OSL.Tokenize (tokenize)
 import OSL.Translate (translateToFormula)
 import OSL.TranslationContext (toLocalTranslationContext)
+import OSL.Types.Stages (Stages (Stages))
 import OSL.Types.FileName (FileName (FileName))
 import OSL.Types.OSL (Declaration (Defined), Name (Sym))
 import OSL.ValidContext (getDeclaration)
@@ -50,22 +54,30 @@ main = do
     ["actus-dictionary"] ->
       putStrLn . unOutput
         =<< genActusDictionary
-    ["halo2-codegen", targetDirectory] ->
-      generateProject (TargetDirectory targetDirectory)
     [fileName, targetName] ->
       putStrLn . unOutput
         =<< runMain (FileName fileName) (TargetName targetName) CompileToCircuit
     [fileName, targetName, "--test"] ->
       putStrLn . unOutput
         =<< runMain (FileName fileName) (TargetName targetName) DONTCompileToCircuit
+    [fileName, targetName, "--output", outputDir] -> do
+      sourceBs <- readFile fileName
+      case decodeUtf8' sourceBs of
+        Right source ->
+          case toCircuit (FileName fileName) (TargetName targetName) (Source source) 8 81 of -- TODO: do not hard-code bits and row count
+            Right c ->
+              generateProject (TargetDirectory outputDir) c
+            Left err ->
+              putStrLn (unErrorMessage err)
+        _ -> putStrLn "could not decode source file; is it not UTF-8?"
     _ -> do
-      putStrLn "Usage: osl FILE TARGET [--test]"
+      putStrLn "Usage: osl FILE NAME --output DIRECTORY"
+      putStrLn "       osl FILE NAME [--test]"
       putStrLn "       osl actus-dictionary"
-      putStrLn "       osl halo2-codegen DIRECTORY"
 
 newtype TargetName = TargetName String
 
-newtype ErrorMessage = ErrorMessage String
+newtype ErrorMessage = ErrorMessage { unErrorMessage :: String }
 
 newtype SuccessfulOutput = SuccessfulOutput String
 
@@ -94,15 +106,29 @@ data CompileToCircuit
   = CompileToCircuit
   | DONTCompileToCircuit
 
-calcMain ::
+toCircuit ::
+  FileName ->
+  TargetName ->
+  Source ->
+  BitsPerByte ->
+  RowCount ->
+  Either ErrorMessage ArithmeticCircuit
+toCircuit fileName targetName source bitsPerByte rowCount = do
+  stages <- runCompilerStages fileName targetName source bitsPerByte
+              rowCount CompileToCircuit
+  case stages ^. #circuit of
+    Just c -> pure c
+    Nothing -> Left (ErrorMessage "no circuit produced")
+
+runCompilerStages ::
   FileName ->
   TargetName ->
   Source ->
   BitsPerByte ->
   RowCount ->
   CompileToCircuit ->
-  Either ErrorMessage SuccessfulOutput
-calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte rowCount compileToCircuit = do
+  Either ErrorMessage Stages
+runCompilerStages (FileName fileName) (TargetName targetName) (Source source) bitsPerByte rowCount compileToCircuit = do
   toks <-
     mapLeft (ErrorMessage . ("Tokenizing error: " <>) . show) $
       tokenize fileName source
@@ -121,13 +147,11 @@ calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte
       (translated, aux) <-
         mapLeft (ErrorMessage . ("Error translating: " <>) . show) $
           runStateT (translateToFormula gc lc targetTerm) mempty
-      let translatedOutput =
-            "Translated OSL:\n"
-              <> show translated
-              <> (if aux == mempty then "" else "\n\nAux Data:\n" <> show aux)
       case compileToCircuit of
         DONTCompileToCircuit ->
-          pure (SuccessfulOutput translatedOutput)
+          pure $ Stages translated aux Nothing Nothing Nothing
+                   Nothing Nothing Nothing Nothing Nothing Nothing
+                   Nothing Nothing Nothing
         CompileToCircuit -> do
           pnf <-
             mapLeft (ErrorMessage . ("Error converting to prenex normal form: " <>) . show) $
@@ -147,35 +171,57 @@ calcMain (FileName fileName) (TargetName targetName) (Source source) bitsPerByte
               circuit = traceTypeToArithmeticCircuit traceType traceLayout
               circuitMetrics = getCircuitMetrics circuit
               traceTypeMetrics = getTraceTypeMetrics traceType
-          pure . SuccessfulOutput $
-            translatedOutput
-              <> "\n\nTrace type metrics: "
-              <> show traceTypeMetrics
-              <> "\n\nCircuit metrics: "
-              <> show circuitMetrics
-              <> "\n\nPrenex normal form: "
-              <> show pnf
-              <> "\n\nStrong prenex normal form: "
-              <> show spnf
-              -- <> "\n\nSuper strong prenex normal form: "
-              -- <> show sspnf
-              <> "\n\nPNF formula: "
-              <> show pnff
-              <> "\n\nSemicircuit: "
-              <> show semi
-              <> "\n\nLayout: "
-              <> show layout
-              <> "\n\nLogic circuit: "
-              <> show logic
-              <> "\n\nTrace type layout: "
-              <> show traceLayout
-              <> "\n\nTrace type: "
-              <> show traceType
-              <> "\n\nArithmetic circuit layout:\n"
-              <> show circuitLayout
-              <> "\n\nArithmetic circuit:\n"
-              <> show circuit
+          pure $ Stages translated aux (Just pnf) (Just spnf) (Just pnff) (Just semi) (Just logic) (Just layout) (Just traceLayout) (Just traceType) (Just circuitLayout) (Just circuit) (Just circuitMetrics) (Just traceTypeMetrics)
     _ -> Left . ErrorMessage $ "please provide the name of a defined term"
+
+calcMain ::
+  FileName ->
+  TargetName ->
+  Source ->
+  BitsPerByte ->
+  RowCount ->
+  CompileToCircuit ->
+  Either ErrorMessage SuccessfulOutput
+calcMain fileName targetName source bitsPerByte rowCount compileToCircuit = do
+  stages <- runCompilerStages fileName targetName source bitsPerByte rowCount compileToCircuit
+  let translated = stages ^. #translation
+      aux = stages ^. #auxTables
+  let translatedOutput =
+        "Translated OSL:\n"
+          <> show translated
+          <> (if aux == mempty then "" else "\n\nAux Data:\n" <> show aux)
+  case compileToCircuit of
+    DONTCompileToCircuit ->
+      pure (SuccessfulOutput translatedOutput)
+    CompileToCircuit ->
+      pure . SuccessfulOutput $
+        translatedOutput
+          <> "\n\nTrace type metrics: "
+          <> show (stages ^. #traceTypeMetrics)
+          <> "\n\nCircuit metrics: "
+          <> show (stages ^. #circuitMetrics)
+          <> "\n\nPrenex normal form: "
+          <> show (stages ^. #pnf)
+          <> "\n\nStrong prenex normal form: "
+          <> show (stages ^. #spnf)
+          -- <> "\n\nSuper strong prenex normal form: "
+          -- <> show sspnf
+          <> "\n\nPNF formula: "
+          <> show (stages ^. #pnff)
+          <> "\n\nSemicircuit: "
+          <> show (stages ^. #semi)
+          <> "\n\nLayout: "
+          <> show (stages ^. #layout)
+          <> "\n\nLogic circuit: "
+          <> show (stages ^. #logic)
+          <> "\n\nTrace type layout: "
+          <> show (stages ^. #traceLayout)
+          <> "\n\nTrace type: "
+          <> show (stages ^. #traceType)
+          <> "\n\nArithmetic circuit layout:\n"
+          <> show (stages ^. #layout)
+          <> "\n\nArithmetic circuit:\n"
+          <> show (stages ^. #circuit)
 
 genActusDictionary :: IO Output
 genActusDictionary =

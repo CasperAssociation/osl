@@ -8,13 +8,14 @@ module Halo2.Codegen
 import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
 import Data.FileEmbed (embedFile)
+import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
 import System.Directory (createDirectoryIfMissing)
 
-generateProject :: TargetDirectory -> IO ()
-generateProject td@(TargetDirectory targetDirectory) = do
+generateProject :: TargetDirectory -> ArithmeticCircuit -> IO ()
+generateProject td@(TargetDirectory targetDirectory) _c = do
   createDirectoryIfMissing True (targetDirectory <> "/src/bin")
   createLicenseFile td
   createNoticeFile td

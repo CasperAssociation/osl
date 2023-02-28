@@ -123,6 +123,7 @@ library
     OSL.Types.Sigma11.StaticEvaluationContext
     OSL.Types.Sigma11.Value
     OSL.Types.Sigma11.ValueTree
+    OSL.Types.Stages
     OSL.Types.Token
     OSL.Types.Translation
     OSL.Types.TranslationContext
