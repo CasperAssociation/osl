@@ -17,8 +17,10 @@ import Data.Either.Extra (mapLeft)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8')
 import Halo2.CircuitMetrics (getCircuitMetrics)
+import Halo2.Codegen (generateProject)
 import Halo2.Types.BitsPerByte (BitsPerByte (BitsPerByte))
 import Halo2.Types.RowCount (RowCount (RowCount))
+import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import OSL.ActusDictionary (actusDictionaryFormatted)
 import OSL.BuildTranslationContext (buildTranslationContext)
 import OSL.Parse (parseContext)
@@ -48,13 +50,18 @@ main = do
     ["actus-dictionary"] ->
       putStrLn . unOutput
         =<< genActusDictionary
+    ["halo2-codegen", targetDirectory] ->
+      generateProject (TargetDirectory targetDirectory)
     [fileName, targetName] ->
       putStrLn . unOutput
         =<< runMain (FileName fileName) (TargetName targetName) CompileToCircuit
     [fileName, targetName, "--test"] ->
       putStrLn . unOutput
         =<< runMain (FileName fileName) (TargetName targetName) DONTCompileToCircuit
-    _ -> putStrLn "Usage: osl FILE TARGET [--test]"
+    _ -> do
+      putStrLn "Usage: osl FILE TARGET [--test]"
+      putStrLn "       osl actus-dictionary"
+      putStrLn "       osl halo2-codegen DIRECTORY"
 
 newtype TargetName = TargetName String
 

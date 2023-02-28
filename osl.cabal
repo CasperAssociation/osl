@@ -36,6 +36,7 @@ library
     Halo2.ByteDecomposition
     Halo2.Circuit
     Halo2.CircuitMetrics
+    Halo2.Codegen
     Halo2.LogicConstraint
     Halo2.Polynomial
     Halo2.PowerProduct
@@ -79,6 +80,7 @@ library
     Halo2.Types.RowIndex
     Halo2.Types.RowCount
     Halo2.Types.Sign
+    Halo2.Types.TargetDirectory
     Halo2.Types.Witness
     Halo2.Types.WitnessColumns
     Halo2.Types.WitnessGenerationContext
