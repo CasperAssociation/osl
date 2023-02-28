@@ -61,3 +61,13 @@ To run the tests:
 ```
 cabal test
 ```
+
+To run the formatter and linter:
+
+```
+./lint.sh
+```
+
+You need to run this script on a clean checkout (i.e. with all changes
+committed to git). If the formatter makes changes, then commit those
+changes, and re-run the script to see if there are any lint hints.
