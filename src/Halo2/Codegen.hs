@@ -15,7 +15,7 @@ import Lib.Git.Type (makeConfig, runGit)
 import System.Directory (createDirectoryIfMissing)
 
 generateProject :: TargetDirectory -> ArithmeticCircuit -> IO ()
-generateProject td@(TargetDirectory targetDirectory) _c = do
+generateProject td@(TargetDirectory targetDirectory) c = do
   createDirectoryIfMissing True (targetDirectory <> "/src/bin")
   createLicenseFile td
   createNoticeFile td
@@ -27,7 +27,7 @@ generateProject td@(TargetDirectory targetDirectory) _c = do
   createCargoLockFile td
   createFlakeNixFile td
   createFlakeLockFile td
-  createLibFile td
+  createLibFile td c
   createGenProofFile td
   createVerifyFile td
   runGit (makeConfig targetDirectory Nothing) $ do
@@ -91,9 +91,9 @@ createFlakeLockFile =
   writeStaticFile "flake.lock"
     $(embedFile "./halo2-template/flake.lock")
 
-createLibFile :: TargetDirectory -> IO ()
+createLibFile :: TargetDirectory -> ArithmeticCircuit -> IO ()
 createLibFile =
-  writeStaticFile "src/lib.rs"
+  const . writeStaticFile "src/lib.rs"
     $(embedFile "./halo2-template/src/lib.rs")
 
 createGenProofFile :: TargetDirectory -> IO ()
