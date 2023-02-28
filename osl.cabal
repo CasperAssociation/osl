@@ -35,6 +35,7 @@ library
     Halo2.ArithmetizationConfig
     Halo2.ByteDecomposition
     Halo2.Circuit
+    Halo2.CircuitEdits
     Halo2.CircuitMetrics
     Halo2.Codegen
     Halo2.LogicConstraint
@@ -186,6 +187,7 @@ library
     process,
     QuickCheck,
     random,
+    raw-strings-qq,
     safe,
     sort,
     sydtest,

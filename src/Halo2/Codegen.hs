@@ -1,3 +1,7 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Halo2.Codegen
@@ -5,18 +9,26 @@ module Halo2.Codegen
     TargetDirectory (TargetDirectory)
   ) where
 
+import Control.Lens ((^.))
 import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
 import Data.FileEmbed (embedFile)
+import Die (die)
+import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.Types.Circuit (ArithmeticCircuit)
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn))
+import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
+import OSL.Types.ErrorMessage (ErrorMessage)
 import System.Directory (createDirectoryIfMissing)
+import Text.RawString.QQ (r)
 
 generateProject :: TargetDirectory -> ArithmeticCircuit -> IO ()
 generateProject td@(TargetDirectory targetDirectory) c = do
-  createDirectoryIfMissing True (targetDirectory <> "/src/bin")
+  createDirectoryIfMissing True (targetDirectory <> "/src")
+  createLibFile td c
   createLicenseFile td
   createNoticeFile td
   createGitignoreFile td
@@ -27,9 +39,6 @@ generateProject td@(TargetDirectory targetDirectory) c = do
   createCargoLockFile td
   createFlakeNixFile td
   createFlakeLockFile td
-  createLibFile td c
-  createGenProofFile td
-  createVerifyFile td
   runGit (makeConfig targetDirectory Nothing) $ do
     initDB False
     add $
@@ -37,8 +46,7 @@ generateProject td@(TargetDirectory targetDirectory) c = do
         [ "LICENSE", "NOTICE", ".gitignore", "README.md",
           "rust-toolchain.toml", "Cargo.toml", "Cargo.nix",
           "Cargo.lock", "flake.nix", "flake.lock",
-          "src/lib.rs", "src/bin/gen_proof.rs",
-          "src/bin/verify.rs"
+          "src/lib.rs"
         ]
 
 createLicenseFile :: TargetDirectory -> IO ()
@@ -92,19 +100,44 @@ createFlakeLockFile =
     $(embedFile "./halo2-template/flake.lock")
 
 createLibFile :: TargetDirectory -> ArithmeticCircuit -> IO ()
-createLibFile =
-  const . writeStaticFile "src/lib.rs"
-    $(embedFile "./halo2-template/src/lib.rs")
+createLibFile targetDir c =
+  case getLibSource c of
+    Right src ->
+      writeStaticFile "src/lib.rs" src targetDir
+    Left err ->
+      die (err ^. #message)
 
-createGenProofFile :: TargetDirectory -> IO ()
-createGenProofFile =
-  writeStaticFile "src/bin/gen_proof.rs"
-    $(embedFile "./halo2-template/src/bin/gen_proof.rs")
+getLibSource :: ArithmeticCircuit -> Either (ErrorMessage ()) ByteString
+getLibSource c = do
+  edits <- getCircuitEdits c
+  pure $
+    mconcat
+      [ prelude,
+        BS.intercalate "\n"
+          (("    " <>) . getEditSource <$> edits),
+        postlude
+      ]
+  where
+    prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
-createVerifyFile :: TargetDirectory -> IO ()
-createVerifyFile =
-  writeStaticFile "src/bin/verify.rs"
-    $(embedFile "./halo2-template/src/bin/verify.rs")
+    postlude = [r|
+  }
+}
+|]
+
+getEditSource :: CircuitEdit -> ByteString
+getEditSource =
+  \case
+    AddColumn Advice ->
+      "meta.advice_column();"
+    AddColumn Instance ->
+      "meta.instance_column();"
+    AddColumn Fixed ->
+      "meta.fixed_column();"
+    _ -> todo
+
+todo :: a
+todo = die "todo"
 
 writeStaticFile :: FilePath -> ByteString -> TargetDirectory -> IO ()
 writeStaticFile filename contents (TargetDirectory targetDir) =
