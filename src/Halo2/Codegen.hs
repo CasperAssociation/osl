@@ -13,10 +13,12 @@ import Control.Lens ((^.))
 import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
 import Data.FileEmbed (embedFile)
+import Data.Text (pack)
+import Data.Text.Encoding (encodeUtf8)
 import Die (die)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality))
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
@@ -129,13 +131,17 @@ getLibSource c = do
 getEditSource :: CircuitEdit -> ByteString
 getEditSource =
   \case
-    AddColumn Advice ->
-      "meta.advice_column();"
-    AddColumn Instance ->
-      "meta.instance_column();"
-    AddColumn Fixed ->
-      "meta.fixed_column();"
+    AddColumn ci Advice ->
+      "let c" <> f ci <> " = meta.advice_column();"
+    AddColumn ci Instance ->
+      "let c" <> f ci <> " = meta.instance_column();"
+    AddColumn ci Fixed ->
+      "let c" <> f ci <> " = meta.fixed_column();"
+    EnableEquality ci ->
+      "meta.enable_equality(c" <> f ci <> ");"
     _ -> todo
+  where
+    f = encodeUtf8 . pack . show
 
 todo :: a
 todo = die "todo"

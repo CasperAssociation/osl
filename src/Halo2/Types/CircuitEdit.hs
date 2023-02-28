@@ -15,7 +15,7 @@ import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import Stark.Types.Scalar (Scalar)
 
 data CircuitEdit =
-    AddColumn ColumnType
+    AddColumn ColumnIndex ColumnType
   | EnableEquality ColumnIndex
   | AddGate Polynomial
   | AddLookupArgument (LookupArgument Polynomial)
