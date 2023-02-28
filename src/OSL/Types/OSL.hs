@@ -259,10 +259,10 @@ instance Show (Bound ann) where
   show (FieldMaxBound _) = "MAX"
   show (ProductBound _ lb rb) = "(" <> show lb <> " × " <> show rb <> ")"
   show (CoproductBound _ lb rb) = "(" <> show lb <> " ⊕ " <> show rb <> ")"
-  show (FunctionBound _ _ _) = ""
+  show (FunctionBound {}) = ""
   show (ListBound _ _) = ""
   show (MaybeBound _ _) = ""
-  show (MapBound _ _ _) = ""
+  show (MapBound {}) = ""
   show (ToBound _ name bnd) = "to(" <> show name <> ")(" <> show bnd <> ")"
 
 newtype LeftBound ann = LeftBound {unLeftBound :: Bound ann}

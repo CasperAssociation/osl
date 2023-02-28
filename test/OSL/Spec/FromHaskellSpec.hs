@@ -165,10 +165,10 @@ enumType =
 
     expectedContext =
       OSL.ValidContext . Map.fromList $
-        [ (OSL.Sym "A", OSL.Data (OSL.Fin () 1)),
-          (OSL.Sym "B", OSL.Data (OSL.Fin () 1)),
-          (OSL.Sym "C", OSL.Data (OSL.Fin () 1)),
-          ( OSL.Sym "Enum3",
+        [ ("A", OSL.Data (OSL.Fin () 1)),
+          ("B", OSL.Data (OSL.Fin () 1)),
+          ("C", OSL.Data (OSL.Fin () 1)),
+          ( "Enum3",
             OSL.Data
               ( OSL.Coproduct
                   ()
@@ -178,6 +178,83 @@ enumType =
                       (OSL.NamedType () "B")
                   )
                   (OSL.NamedType () "C")
+              )
+          ),
+          ( "A_inj",
+            OSL.Defined
+              ( OSL.F
+                  ()
+                  Nothing
+                  (OSL.NamedType () "A")
+                  (OSL.NamedType () "Enum3")
+              )
+              ( OSL.Lambda
+                  ()
+                  "x"
+                  (OSL.NamedType () "A")
+                  ( OSL.Apply
+                      ()
+                      (OSL.To () "Enum3")
+                      ( OSL.Apply
+                          ()
+                          (OSL.Iota1 ())
+                          ( OSL.Apply
+                              ()
+                              (OSL.Iota1 ())
+                              (OSL.NamedTerm () "x")
+                          )
+                      )
+                  )
+              )
+          ),
+          ( "B_inj",
+            OSL.Defined
+              ( OSL.F
+                  ()
+                  Nothing
+                  (OSL.NamedType () "B")
+                  (OSL.NamedType () "Enum3")
+              )
+              ( OSL.Lambda
+                  ()
+                  "x"
+                  (OSL.NamedType () "B")
+                  ( OSL.Apply
+                      ()
+                      (OSL.To () "Enum3")
+                      ( OSL.Apply
+                          ()
+                          (OSL.Iota1 ())
+                          ( OSL.Apply
+                              ()
+                              (OSL.Iota2 ())
+                              (OSL.NamedTerm () "x")
+                          )
+                      )
+                  )
+              )
+          ),
+          ( "C_inj",
+            OSL.Defined
+              ( OSL.F
+                  ()
+                  Nothing
+                  (OSL.NamedType () "C")
+                  (OSL.NamedType () "Enum3")
+              )
+              ( OSL.Lambda
+                  ()
+                  "x"
+                  (OSL.NamedType () "C")
+                  ( OSL.Apply
+                      ()
+                      (OSL.To () "Enum3")
+                      ( OSL.Apply
+                          ()
+                          (OSL.Iota2 ())
+                          (OSL.NamedTerm () "x")
+                      )
+                  )
               )
           )
         ]
