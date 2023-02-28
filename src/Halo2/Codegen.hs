@@ -121,6 +121,7 @@ getLibSource c = do
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
     postlude = [r|
+    MyConfig {}
   }
 }
 |]
