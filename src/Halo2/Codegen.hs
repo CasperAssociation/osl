@@ -18,8 +18,10 @@ import Data.Text.Encoding (encodeUtf8)
 import Die (die)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate))
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
+import Halo2.Types.Label (Label)
+import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
@@ -139,9 +141,14 @@ getEditSource =
       "let c" <> f ci <> " = meta.fixed_column();"
     EnableEquality ci ->
       "meta.enable_equality(c" <> f ci <> ");"
+    AddGate l p ->
+      getAddGateSource l p
     _ -> todo
   where
     f = encodeUtf8 . pack . show
+
+getAddGateSource :: Label -> Polynomial -> ByteString
+getAddGateSource = todo
 
 todo :: a
 todo = die "todo"

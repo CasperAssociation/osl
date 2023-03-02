@@ -9,10 +9,11 @@ import Control.Lens ((^.))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate))
 import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
 import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns (EqualityConstrainableColumns))
+import Halo2.Types.PolynomialConstraints (PolynomialConstraints (PolynomialConstraints))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 
 -- Get a list of edits which turns the empty circuit
@@ -21,7 +22,8 @@ getCircuitEdits :: ArithmeticCircuit -> Either (ErrorMessage ()) [CircuitEdit]
 getCircuitEdits c =
   mconcat <$> sequence
     [ getColumnTypeEdits (c ^. #columnTypes),
-      pure $ getEqualityConstrainableColumnsEdits (c ^. #equalityConstrainableColumns)
+      pure $ getEqualityConstrainableColumnsEdits (c ^. #equalityConstrainableColumns),
+      pure $ getGateConstraintEdits (c ^. #gateConstraints)
       -- TODO
     ]
 
@@ -38,3 +40,7 @@ getColumnTypeEdits (ColumnTypes colTypes) =
 getEqualityConstrainableColumnsEdits :: EqualityConstrainableColumns -> [CircuitEdit]
 getEqualityConstrainableColumnsEdits (EqualityConstrainableColumns eqcs) =
   EnableEquality <$> Set.toList eqcs
+
+getGateConstraintEdits :: PolynomialConstraints -> [CircuitEdit]
+getGateConstraintEdits (PolynomialConstraints cs _db) =
+  uncurry AddGate <$> cs
