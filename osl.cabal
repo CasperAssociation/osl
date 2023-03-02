@@ -130,6 +130,7 @@ library
     OSL.Value
     OSL.Witness
     Semicircuit.Argument
+    Semicircuit.CountCases
     Semicircuit.DNFFormula
     Semicircuit.Gensyms
     Semicircuit.PrenexNormalForm
