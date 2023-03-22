@@ -7,9 +7,9 @@ module Semicircuit.CountCases
 where
 
 import Control.Lens ((^.))
+import Data.Bifunctor (second)
 import Data.Either.Combinators (maybeToRight)
 import Data.Foldable (foldl')
-import Data.Bifunctor (second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import OSL.Sigma11 (evalTerm)
