@@ -1,7 +1,7 @@
 use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter},
-  plonk::{Circuit, ConstraintSystem, Error},
+  plonk::{Circuit, ConstraintSystem, Error, VirtualCells},
 };
 
 pub struct MyCircuit {}
@@ -22,3 +22,5 @@ impl<F: Field> Circuit<F> for MyCircuit {
   }
 
   fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+    let cs = VirtualCells::new(meta);
+

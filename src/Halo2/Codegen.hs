@@ -13,15 +13,20 @@ import Control.Lens ((^.))
 import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
 import Data.FileEmbed (embedFile)
+import qualified Data.Map as Map
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Die (die)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddColumnRotation, AddGate))
+import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
+import Halo2.Types.Exponent (Exponent)
 import Halo2.Types.Label (Label)
 import Halo2.Types.Polynomial (Polynomial)
+import Halo2.Types.PolynomialVariable (PolynomialVariable)
+import Halo2.Types.PowerProduct (PowerProduct)
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
@@ -141,14 +146,50 @@ getEditSource =
       "let c" <> f ci <> " = meta.fixed_column();"
     EnableEquality ci ->
       "meta.enable_equality(c" <> f ci <> ");"
+    AddColumnRotation ci t j ->
+      "let r" <> f ci <> "_" <> f j <>
+        " = cs.query_" <> showColType t <> "(c" <> f ci <>
+        ", Rotation(" <> f j <> "));"
     AddGate l p ->
       getAddGateSource l p
     _ -> todo
   where
-    f = encodeUtf8 . pack . show
+    showColType :: ColumnType -> ByteString
+    showColType =
+      \case
+        Advice -> "advice"
+        Instance -> "instance"
+        Fixed -> "fixed"
+
+f :: Show a => a -> ByteString
+f = encodeUtf8 . pack . show
 
 getAddGateSource :: Label -> Polynomial -> ByteString
-getAddGateSource = todo
+getAddGateSource l p =
+  "meta.create_gate(" <>  f l <> ", |meta| {\n"
+    <> "        Constraints::with_selector(0, ["
+    <> getPolySource p <> "])\n"
+    <> "    });"
+
+getPolySource :: Polynomial -> ByteString
+getPolySource p =
+  BS.intercalate " + " $ uncurry getMonoSource <$> Map.toList (p ^. #monos)
+
+getMonoSource :: PowerProduct -> Coefficient -> ByteString
+getMonoSource pp c =
+  "(" <> f c <> " * " <> getPowerProductSource pp <> ")"
+
+getPowerProductSource :: PowerProduct -> ByteString
+getPowerProductSource pp =
+  BS.intercalate " * " $ uncurry getPowerSource <$> Map.toList (pp ^. #getPowerProduct)
+
+getPowerSource :: PolynomialVariable -> Exponent -> ByteString
+getPowerSource v e =
+  BS.intercalate "*" $ replicate (e ^. #getExponent) (getPolyVarSource v)
+
+getPolyVarSource :: PolynomialVariable -> ByteString
+getPolyVarSource v =
+  "r" <> f (v ^. #colIndex) <> "_" <> f (v ^. #rowIndex)
 
 todo :: a
 todo = die "todo"
