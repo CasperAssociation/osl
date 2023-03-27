@@ -131,6 +131,22 @@
         "url": "https://gitlab.homotopic.tech/horizon/horizon-platform"
       }
     },
+    "libgit-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1583564851,
+        "narHash": "sha256-9Uz5Vx/wTn81x9xZtbT5+EZaxoZkxQOvcvQjLsP2zIY=",
+        "owner": "vincenthz",
+        "repo": "hs-libgit",
+        "rev": "e0eaba751cd2c6612291d2f1b82c6d00acab0103",
+        "type": "github"
+      },
+      "original": {
+        "owner": "vincenthz",
+        "repo": "hs-libgit",
+        "type": "github"
+      }
+    },
     "lint-utils": {
       "inputs": {
         "flake-utils": "flake-utils_2",
@@ -242,6 +258,7 @@
         "flake-compat-ci": "flake-compat-ci",
         "flake-utils": "flake-utils",
         "horizon-platform": "horizon-platform",
+        "libgit-src": "libgit-src",
         "lint-utils": "lint-utils_2",
         "nixpkgs": "nixpkgs_3"
       }
