@@ -162,7 +162,7 @@ f = encodeUtf8 . pack . show
 
 getAddLookupArgumentSource :: LookupArgument Polynomial -> ByteString
 getAddLookupArgumentSource arg =
-  -- TODO: incorporate gate
+  -- TODO: incorporate gate & use a non-fixed lookup argument
   "meta.lookup(|meta| {\n"
     <> BS.intercalate "\n"
          (("       " <>) . getColumnRotationSource
@@ -185,15 +185,13 @@ getAddGateSource l p =
          (("       " <>) . getColumnRotationSource
            <$> Set.toList (getPolynomialVariables p)) <> "\n"
     <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), [\n"
-    <> "            " <> getPolySource p <> "\n"
+    <> "            Constraint::from(" <> getPolySource p <> ")\n"
     <> "        ])\n"
     <> "    });"
 
 getPolySource :: Polynomial -> ByteString
 getPolySource p =
-  "Constraint::from(" <>
-    BS.intercalate " + " (uncurry getMonoSource <$> Map.toList (p ^. #monos))
-    <> ")"
+  BS.intercalate " + " (uncurry getMonoSource <$> Map.toList (p ^. #monos))
 
 getMonoSource :: PowerProduct -> Coefficient -> ByteString
 getMonoSource pp c =
