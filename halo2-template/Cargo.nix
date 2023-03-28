@@ -258,6 +258,7 @@ in
       [ "batch" ]
       [ "default" ]
       [ "multicore" ]
+      [ "unstable-dynamic-lookups" ]
     ];
     dependencies = {
       blake2b_simd = rustPackages."registry+https://github.com/rust-lang/crates.io-index".blake2b_simd."1.0.1" { inherit profileName; };
