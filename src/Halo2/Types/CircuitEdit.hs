@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 
 module Halo2.Types.CircuitEdit
-  ( CircuitEdit (AddColumn, AddEqualityConstraint, AddColumnRotation, AddFixedColumn, AddGate, AddLookupArgument, EnableEquality)
+  ( CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, EnableEquality)
   ) where
 
 import Data.Map (Map)
@@ -12,13 +12,12 @@ import Halo2.Types.ColumnType (ColumnType)
 import Halo2.Types.Label (Label)
 import Halo2.Types.LookupArgument (LookupArgument)
 import Halo2.Types.Polynomial (Polynomial)
-import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute, Relative))
+import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import Stark.Types.Scalar (Scalar)
 
 data CircuitEdit =
     AddColumn ColumnIndex ColumnType
   | EnableEquality ColumnIndex
-  | AddColumnRotation ColumnIndex ColumnType (RowIndex Relative)
   | AddGate Label Polynomial
   | AddLookupArgument (LookupArgument Polynomial)
   | AddEqualityConstraint (Set CellReference)

@@ -1,4 +1,6 @@
-{ inputs =
+{
+  nixConfig.bash-prompt = "[nix-develop-osl-output:] ";
+  inputs =
     { cargo2nix.url = "github:cargo2nix/cargo2nix";
       nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
       rust-overlay.url = "github:oxalica/rust-overlay";

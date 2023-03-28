@@ -14,18 +14,20 @@ import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
 import Data.FileEmbed (embedFile)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Die (die)
+import Halo2.Circuit (getPolynomialVariables)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddColumnRotation, AddGate))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.Exponent (Exponent)
 import Halo2.Types.Label (Label)
 import Halo2.Types.Polynomial (Polynomial)
-import Halo2.Types.PolynomialVariable (PolynomialVariable)
+import Halo2.Types.PolynomialVariable (PolynomialVariable (PolynomialVariable))
 import Halo2.Types.PowerProduct (PowerProduct)
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
@@ -146,25 +148,9 @@ getEditSource =
       "let c" <> f ci <> " = meta.fixed_column();"
     EnableEquality ci ->
       "meta.enable_equality(c" <> f ci <> ");"
-    AddColumnRotation ci Fixed 0 ->
-      "let r" <> f ci <> "_0" <>
-        " = cs.query_fixed(c" <> f ci <> ");"
-    AddColumnRotation _ Fixed _ ->
-      die "not supported: fixed column reference with a non-zero row offset"
-    AddColumnRotation ci t j ->
-      "let r" <> f ci <> "_" <> f j <>
-        " = cs.query_" <> showColType t <> "(c" <> f ci <>
-        ", Rotation(" <> f j <> "));"
     AddGate l p ->
       getAddGateSource l p
     _ -> todo
-  where
-    showColType :: ColumnType -> ByteString
-    showColType =
-      \case
-        Advice -> "advice"
-        Instance -> "instance"
-        Fixed -> "fixed"
 
 f :: Show a => a -> ByteString
 f = encodeUtf8 . pack . show
@@ -172,8 +158,12 @@ f = encodeUtf8 . pack . show
 getAddGateSource :: Label -> Polynomial -> ByteString
 getAddGateSource l p =
   "meta.create_gate(" <>  f l <> ", |meta| {\n"
-    <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), ["
-    <> getPolySource p <> "])\n"
+    <> BS.intercalate "\n"
+         (("       " <>) . getColumnRotationSource
+           <$> Set.toList (getPolynomialVariables p)) <> "\n"
+    <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), [\n"
+    <> "            " <> getPolySource p <> "\n"
+    <> "        ])\n"
     <> "    });"
 
 getPolySource :: Polynomial -> ByteString
@@ -197,6 +187,12 @@ getPowerSource v e =
 getPolyVarSource :: PolynomialVariable -> ByteString
 getPolyVarSource v =
   "r" <> f (v ^. #colIndex) <> "_" <> f (v ^. #rowIndex)
+
+getColumnRotationSource :: PolynomialVariable -> ByteString
+getColumnRotationSource (PolynomialVariable ci j) =
+  "let r" <> f ci <> "_" <> f j <>
+    " = meta.query_any(c" <> f ci <>
+    ", Rotation(" <> f j <> "));"
 
 todo :: a
 todo = die "todo"

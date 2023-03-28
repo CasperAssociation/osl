@@ -3,7 +3,7 @@ use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter},
   poly::Rotation,
-  plonk::{Circuit, Constraints, Constraint, ConstraintSystem, Error, Expression, VirtualCells},
+  plonk::{Circuit, Constraint, Constraints, ConstraintSystem, Error, Expression},
 };
 
 pub struct MyCircuit {}
@@ -24,5 +24,4 @@ impl<F: PrimeField> Circuit<F> for MyCircuit {
   }
 
   fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-    let cs = VirtualCells::new(meta);
 
