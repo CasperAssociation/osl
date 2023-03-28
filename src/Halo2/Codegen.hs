@@ -146,6 +146,11 @@ getEditSource =
       "let c" <> f ci <> " = meta.fixed_column();"
     EnableEquality ci ->
       "meta.enable_equality(c" <> f ci <> ");"
+    AddColumnRotation ci Fixed 0 ->
+      "let r" <> f ci <> "_0" <>
+        " = cs.query_fixed(c" <> f ci <> ");"
+    AddColumnRotation _ Fixed _ ->
+      die "not supported: fixed column reference with a non-zero row offset"
     AddColumnRotation ci t j ->
       "let r" <> f ci <> "_" <> f j <>
         " = cs.query_" <> showColType t <> "(c" <> f ci <>
@@ -167,17 +172,19 @@ f = encodeUtf8 . pack . show
 getAddGateSource :: Label -> Polynomial -> ByteString
 getAddGateSource l p =
   "meta.create_gate(" <>  f l <> ", |meta| {\n"
-    <> "        Constraints::with_selector(0, ["
+    <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), ["
     <> getPolySource p <> "])\n"
     <> "    });"
 
 getPolySource :: Polynomial -> ByteString
 getPolySource p =
-  BS.intercalate " + " $ uncurry getMonoSource <$> Map.toList (p ^. #monos)
+  "Constraint::from(" <>
+    BS.intercalate " + " (uncurry getMonoSource <$> Map.toList (p ^. #monos))
+    <> ")"
 
 getMonoSource :: PowerProduct -> Coefficient -> ByteString
 getMonoSource pp c =
-  "(" <> f c <> " * " <> getPowerProductSource pp <> ")"
+  "Expression::Constant(PrimeField::from_u128(" <> f c <> ")) * " <> getPowerProductSource pp
 
 getPowerProductSource :: PowerProduct -> ByteString
 getPowerProductSource pp =

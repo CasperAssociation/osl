@@ -1,7 +1,9 @@
+use ff::PrimeField;
 use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter},
-  plonk::{Circuit, ConstraintSystem, Error, VirtualCells},
+  poly::Rotation,
+  plonk::{Circuit, Constraints, Constraint, ConstraintSystem, Error, Expression, VirtualCells},
 };
 
 pub struct MyCircuit {}
@@ -9,7 +11,7 @@ pub struct MyCircuit {}
 #[derive(Clone)]
 pub struct MyConfig {}
 
-impl<F: Field> Circuit<F> for MyCircuit {
+impl<F: PrimeField> Circuit<F> for MyCircuit {
   type Config = MyConfig;
   type FloorPlanner = SimpleFloorPlanner;
 
