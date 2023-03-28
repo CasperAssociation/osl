@@ -21,7 +21,7 @@ import Die (die)
 import Halo2.Circuit (getPolynomialVariables)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddLookupArgument, EnableEquality, AddGate))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddLookupTable, AddLookupArgument, EnableEquality, AddGate))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.Exponent (Exponent)
@@ -153,6 +153,11 @@ getEditSource =
       "meta.enable_equality(c" <> f ci <> ");"
     AddGate l p ->
       getAddGateSource l p
+    AddLookupTable l tab ->
+      let fixedCols = todo tab
+          adviceCols = todo tab in
+        "meta.create_dynamic_table(" <> f l <> ", "
+          <> fixedCols <> ", " <> adviceCols <> ")"
     AddLookupArgument arg ->
       getAddLookupArgumentSource arg
     _ -> todo

@@ -9,10 +9,11 @@ import Control.Lens ((^.))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate, AddLookupArgument))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate, AddLookupArgument, AddLookupTable))
 import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
 import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns (EqualityConstrainableColumns))
+import Halo2.Types.Label (Label (Label))
 import Halo2.Types.PolynomialConstraints (PolynomialConstraints (PolynomialConstraints))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 
@@ -24,7 +25,14 @@ getCircuitEdits c =
     [ getColumnTypeEdits (c ^. #columnTypes),
       pure $ getEqualityConstrainableColumnsEdits (c ^. #equalityConstrainableColumns),
       pure $ getGateConstraintEdits (c ^. #gateConstraints),
-      pure $ AddLookupArgument <$> Set.toList (c ^. #lookupArguments . #getLookupArguments)
+      pure $ uncurry AddLookupTable <$>
+        zip (Label . ("tab_" <>) . show <$> [0 :: Int ..])
+          (Set.toList
+            (Set.map
+              (fmap snd . (^. #tableMap))
+              (c ^. #lookupArguments . #getLookupArguments))),
+      pure $ AddLookupArgument <$>
+        Set.toList (c ^. #lookupArguments . #getLookupArguments)
       -- TODO
     ]
 
