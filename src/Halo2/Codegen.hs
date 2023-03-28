@@ -186,7 +186,7 @@ getPowerSource v e =
 
 getPolyVarSource :: PolynomialVariable -> ByteString
 getPolyVarSource v =
-  "r" <> f (v ^. #colIndex) <> "_" <> f (v ^. #rowIndex)
+  "r" <> f (v ^. #colIndex) <> "_" <> f (v ^. #rowIndex) <> ".clone()"
 
 getColumnRotationSource :: PolynomialVariable -> ByteString
 getColumnRotationSource (PolynomialVariable ci j) =
