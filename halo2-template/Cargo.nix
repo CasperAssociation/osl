@@ -238,21 +238,22 @@ in
     registry = "unknown";
     src = fetchCrateLocal workspaceSrc;
     dependencies = {
-      halo2_proofs = rustPackages."git+https://github.com/zcash/halo2.git".halo2_proofs."0.2.0" { inherit profileName; };
+      ff = rustPackages."registry+https://github.com/rust-lang/crates.io-index".ff."0.13.0" { inherit profileName; };
+      halo2_proofs = rustPackages."git+https://github.com/zcash/halo2.git".halo2_proofs."0.3.0" { inherit profileName; };
       pasta_curves = rustPackages."registry+https://github.com/rust-lang/crates.io-index".pasta_curves."0.5.0" { inherit profileName; };
       rand_core = rustPackages."registry+https://github.com/rust-lang/crates.io-index".rand_core."0.6.4" { inherit profileName; };
     };
   });
   
-  "git+https://github.com/zcash/halo2.git".halo2_proofs."0.2.0" = overridableMkRustCrate (profileName: rec {
+  "git+https://github.com/zcash/halo2.git".halo2_proofs."0.3.0" = overridableMkRustCrate (profileName: rec {
     name = "halo2_proofs";
-    version = "0.2.0";
+    version = "0.3.0";
     registry = "git+https://github.com/zcash/halo2.git";
     src = fetchCrateGit {
       url = https://github.com/zcash/halo2.git;
       name = "halo2_proofs";
-      version = "0.2.0";
-      rev = "47f2cc83498de27bcf1641e9f2e02e0c86551c7e";};
+      version = "0.3.0";
+      rev = "2c2d449af09798abb80a143cd6b2eaef55ff67ea";};
     features = builtins.concatLists [
       [ "batch" ]
       [ "default" ]

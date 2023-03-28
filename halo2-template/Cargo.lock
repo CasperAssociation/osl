@@ -147,6 +147,7 @@ dependencies = [
 name = "halo2-example"
 version = "0.1.0"
 dependencies = [
+ "ff",
  "halo2_proofs",
  "pasta_curves",
  "rand_core",
@@ -154,8 +155,8 @@ dependencies = [
 
 [[package]]
 name = "halo2_proofs"
-version = "0.2.0"
-source = "git+https://github.com/zcash/halo2.git?rev=47f2cc83498de27bcf1641e9f2e02e0c86551c7e#47f2cc83498de27bcf1641e9f2e02e0c86551c7e"
+version = "0.3.0"
+source = "git+https://github.com/zcash/halo2.git?rev=2c2d449af09798abb80a143cd6b2eaef55ff67ea#2c2d449af09798abb80a143cd6b2eaef55ff67ea"
 dependencies = [
  "blake2b_simd",
  "ff",
