@@ -39,6 +39,7 @@ library
     Halo2.CircuitMetrics
     Halo2.Codegen
     Halo2.LogicConstraint
+    Halo2.MungeLookupArguments
     Halo2.Polynomial
     Halo2.PowerProduct
     Halo2.TruthTable
