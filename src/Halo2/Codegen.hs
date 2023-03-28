@@ -21,11 +21,14 @@ import Die (die)
 import Halo2.Circuit (getPolynomialVariables)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddLookupArgument, EnableEquality, AddGate))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.Exponent (Exponent)
+import Halo2.Types.InputExpression (InputExpression (InputExpression))
 import Halo2.Types.Label (Label)
+import Halo2.Types.LookupArgument (LookupArgument)
+import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialVariable (PolynomialVariable (PolynomialVariable))
 import Halo2.Types.PowerProduct (PowerProduct)
@@ -150,10 +153,30 @@ getEditSource =
       "meta.enable_equality(c" <> f ci <> ");"
     AddGate l p ->
       getAddGateSource l p
+    AddLookupArgument arg ->
+      getAddLookupArgumentSource arg
     _ -> todo
 
 f :: Show a => a -> ByteString
 f = encodeUtf8 . pack . show
+
+getAddLookupArgumentSource :: LookupArgument Polynomial -> ByteString
+getAddLookupArgumentSource arg =
+  -- TODO: incorporate gate
+  "meta.lookup(|meta| {\n"
+    <> BS.intercalate "\n"
+         (("       " <>) . getColumnRotationSource
+           <$> Set.toList (getPolynomialVariables arg)) <> "\n"
+    <> "        vec!["
+    <> mconcat
+         [ "            (" <> getPolySource p
+                     <> ", c" <> f c <> "),"
+           | (InputExpression p, LookupTableColumn c)
+               <- arg ^. #tableMap
+         ]
+    <> "        ]"
+    <> "    });"
+
 
 getAddGateSource :: Label -> Polynomial -> ByteString
 getAddGateSource l p =

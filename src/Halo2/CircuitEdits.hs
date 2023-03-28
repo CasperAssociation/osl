@@ -9,7 +9,7 @@ import Control.Lens ((^.))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddGate, AddLookupArgument))
 import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
 import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns (EqualityConstrainableColumns))
@@ -23,7 +23,8 @@ getCircuitEdits c =
   mconcat <$> sequence
     [ getColumnTypeEdits (c ^. #columnTypes),
       pure $ getEqualityConstrainableColumnsEdits (c ^. #equalityConstrainableColumns),
-      pure $ getGateConstraintEdits (c ^. #gateConstraints)
+      pure $ getGateConstraintEdits (c ^. #gateConstraints),
+      pure $ AddLookupArgument <$> Set.toList (c ^. #lookupArguments . #getLookupArguments)
       -- TODO
     ]
 
