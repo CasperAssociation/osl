@@ -21,6 +21,7 @@ import Die (die)
 import Halo2.Types.Argument (Argument)
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
+import Halo2.Types.ColumnType (ColumnType (Advice))
 import Halo2.Types.LookupArgument (LookupArgument)
 import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
 import Halo2.Types.Polynomial (Polynomial)
@@ -31,7 +32,7 @@ todo = die "todo"
 
 newtype InstanceToAdviceMapping =
   InstanceToAdviceMapping
-    { unInstanceToAdviceMapping :: Map ColumnIndex ColumnIndex }
+    (Map ColumnIndex ColumnIndex)
 
 mungeLookupArguments ::
   ArithmeticCircuit ->
@@ -69,7 +70,14 @@ insertNewAdviceInColumnTypes ::
   InstanceToAdviceMapping ->
   ArithmeticCircuit ->
   ArithmeticCircuit
-insertNewAdviceInColumnTypes = todo
+insertNewAdviceInColumnTypes (InstanceToAdviceMapping m) c =
+  (#columnTypes . #getColumnTypes) .~
+    foldl (.) id
+      [ Map.insert k Advice
+        | k <- Map.elems m
+      ]
+      (c ^. #columnTypes . #getColumnTypes)
+    $ c
 
 doReplacementOnLookupArgument ::
   InstanceToAdviceMapping ->
