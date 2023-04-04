@@ -20,14 +20,15 @@ import Data.Text.Encoding (encodeUtf8)
 import Die (die)
 import Halo2.Circuit (getPolynomialVariables)
 import Halo2.CircuitEdits (getCircuitEdits)
+import Halo2.MungeLookupArguments (getColumnsOfType)
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddLookupTable, AddLookupArgument, EnableEquality, AddGate))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.Exponent (Exponent)
-import Halo2.Types.InputExpression (InputExpression (InputExpression))
+-- import Halo2.Types.InputExpression (InputExpression (InputExpression))
 import Halo2.Types.Label (Label)
-import Halo2.Types.LookupArgument (LookupArgument)
+-- import Halo2.Types.LookupArgument (LookupArgument)
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialVariable (PolynomialVariable (PolynomialVariable))
@@ -128,7 +129,7 @@ getLibSource c = do
     mconcat
       [ prelude,
         BS.intercalate "\n"
-          (("    " <>) . getEditSource <$> edits),
+          (("    " <>) . getEditSource c <$> edits),
         postlude
       ]
   where
@@ -140,8 +141,8 @@ getLibSource c = do
 }
 |]
 
-getEditSource :: CircuitEdit -> ByteString
-getEditSource =
+getEditSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
+getEditSource c =
   \case
     AddColumn ci Advice ->
       "let c" <> f ci <> " = meta.advice_column();"
@@ -154,33 +155,39 @@ getEditSource =
     AddGate l p ->
       getAddGateSource l p
     AddLookupTable l tab ->
-      let fixedCols = todo tab
-          adviceCols = todo tab in
-        "meta.create_dynamic_table(" <> f l <> ", "
-          <> fixedCols <> ", " <> adviceCols <> ")"
-    AddLookupArgument arg ->
-      getAddLookupArgumentSource arg
+      let fixedCols = Set.map LookupTableColumn
+                      $ getColumnsOfType Fixed c
+          adviceCols = Set.map LookupTableColumn
+                       $ getColumnsOfType Advice c
+          tabFixedCols = (`Set.member` fixedCols) `filter` tab
+          tabAdviceCols = (`Set.member` adviceCols) `filter` tab
+      in "meta.create_dynamic_table(" <> f l <> ", "
+          <> getLookupTableColumnsSource tabFixedCols
+          <> ", " <> getLookupTableColumnsSource tabAdviceCols <> ");"
+    AddLookupArgument _arg -> mempty -- TODO
+      -- getAddLookupArgumentSource arg
     _ -> todo
+
 
 f :: Show a => a -> ByteString
 f = encodeUtf8 . pack . show
 
-getAddLookupArgumentSource :: LookupArgument Polynomial -> ByteString
-getAddLookupArgumentSource arg =
-  -- TODO: incorporate gate & use a non-fixed lookup argument
-  "meta.lookup(|meta| {\n"
-    <> BS.intercalate "\n"
-         (("       " <>) . getColumnRotationSource
-           <$> Set.toList (getPolynomialVariables arg)) <> "\n"
-    <> "        vec!["
-    <> mconcat
-         [ "            (" <> getPolySource p
-                     <> ", c" <> f c <> "),"
-           | (InputExpression p, LookupTableColumn c)
-               <- arg ^. #tableMap
-         ]
-    <> "        ]"
-    <> "    });"
+-- getAddLookupArgumentSource :: LookupArgument Polynomial -> ByteString
+-- getAddLookupArgumentSource arg =
+--   -- TODO: incorporate gate & use a non-fixed lookup argument
+--   "meta.lookup(|meta| {\n"
+--     <> BS.intercalate "\n"
+--          (("       " <>) . getColumnRotationSource
+--            <$> Set.toList (getPolynomialVariables arg)) <> "\n"
+--     <> "        vec!["
+--     <> mconcat
+--          [ "            (" <> getPolySource p
+--                      <> ", c" <> f c <> "),"
+--            | (InputExpression p, LookupTableColumn c)
+--                <- arg ^. #tableMap
+--          ]
+--     <> "        ]"
+--     <> "    });"
 
 
 getAddGateSource :: Label -> Polynomial -> ByteString
@@ -219,6 +226,12 @@ getColumnRotationSource (PolynomialVariable ci j) =
   "let r" <> f ci <> "_" <> f j <>
     " = meta.query_any(c" <> f ci <>
     ", Rotation(" <> f j <> "));"
+
+getLookupTableColumnsSource :: [LookupTableColumn] -> ByteString
+getLookupTableColumnsSource cs =
+  ("[" <>) . (<> "]") . BS.intercalate ", " $
+    ("c" <>) . f . (^. #unLookupTableColumn)
+      <$> cs
 
 todo :: a
 todo = die "todo"

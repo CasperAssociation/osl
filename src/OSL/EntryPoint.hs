@@ -20,6 +20,7 @@ import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8')
 import Halo2.CircuitMetrics (getCircuitMetrics)
 import Halo2.Codegen (generateProject)
+import Halo2.MungeLookupArguments (mungeLookupArguments)
 import Halo2.Types.BitsPerByte (BitsPerByte (BitsPerByte))
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.RowCount (RowCount (RowCount))
@@ -116,7 +117,7 @@ toCircuit ::
 toCircuit fileName targetName source bitsPerByte rowCount = do
   stages <- runCompilerStages fileName targetName source bitsPerByte
               rowCount CompileToCircuit
-  case stages ^. #circuit of
+  case stages ^. #mungedCircuit of
     Just c -> pure c
     Nothing -> Left (ErrorMessage "no circuit produced")
 
@@ -151,7 +152,7 @@ runCompilerStages (FileName fileName) (TargetName targetName) (Source source) bi
         DONTCompileToCircuit ->
           pure $ Stages translated aux Nothing Nothing Nothing
                    Nothing Nothing Nothing Nothing Nothing Nothing
-                   Nothing Nothing Nothing
+                   Nothing Nothing Nothing Nothing
         CompileToCircuit -> do
           pnf <-
             mapLeft (ErrorMessage . ("Error converting to prenex normal form: " <>) . show) $
@@ -169,9 +170,10 @@ runCompilerStages (FileName fileName) (TargetName targetName) (Source source) bi
               traceType = logicCircuitToTraceType bitsPerByte logic
               circuitLayout = mappings traceType traceLayout
               circuit = traceTypeToArithmeticCircuit traceType traceLayout
-              circuitMetrics = getCircuitMetrics circuit
+              mungedCircuit = mungeLookupArguments circuit
+              circuitMetrics = getCircuitMetrics mungedCircuit
               traceTypeMetrics = getTraceTypeMetrics traceType
-          pure $ Stages translated aux (Just pnf) (Just spnf) (Just pnff) (Just semi) (Just logic) (Just layout) (Just traceLayout) (Just traceType) (Just circuitLayout) (Just circuit) (Just circuitMetrics) (Just traceTypeMetrics)
+          pure $ Stages translated aux (Just pnf) (Just spnf) (Just pnff) (Just semi) (Just logic) (Just layout) (Just traceLayout) (Just traceType) (Just circuitLayout) (Just circuit) (Just mungedCircuit) (Just circuitMetrics) (Just traceTypeMetrics)
     _ -> Left . ErrorMessage $ "please provide the name of a defined term"
 
 calcMain ::

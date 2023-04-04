@@ -9,7 +9,8 @@
 
 module Halo2.MungeLookupArguments
   ( mungeLookupArguments,
-    mungeArgument
+    mungeArgument,
+    getColumnsOfType
   ) where
 
 import Control.Arrow (second)
@@ -104,7 +105,7 @@ getLookupArgumentInstanceColumns ::
   Set ColumnIndex
 getLookupArgumentInstanceColumns c =
   getLookupArgumentsColumns (c ^. #lookupArguments)
-    `Set.intersection` getInstanceColumns c
+    `Set.intersection` getColumnsOfType Instance c
 
 getLookupArgumentsColumns ::
   LookupArguments Polynomial ->
@@ -121,12 +122,13 @@ getLookupArgumentColumns =
     . fmap ((^. #unLookupTableColumn) . snd)
     . (^. #tableMap)
 
-getInstanceColumns ::
+getColumnsOfType ::
+  ColumnType ->
   ArithmeticCircuit ->
   Set ColumnIndex
-getInstanceColumns =
+getColumnsOfType t =
   Map.keysSet
-    . Map.filter (== Instance)
+    . Map.filter (== t)
     . (^. #columnTypes . #getColumnTypes)
 
 getFirstUnusedColumnIndex ::

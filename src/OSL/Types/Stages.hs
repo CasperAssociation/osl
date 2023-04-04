@@ -29,6 +29,7 @@ data Stages =
       traceType :: Maybe TraceType,
       circuitLayout :: Maybe Mappings,
       circuit :: Maybe ArithmeticCircuit,
+      mungedCircuit :: Maybe ArithmeticCircuit,
       circuitMetrics :: Maybe CircuitMetrics,
       traceTypeMetrics :: Maybe TraceTypeMetrics
     }

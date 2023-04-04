@@ -17,6 +17,7 @@ import Control.Lens ((^.))
 import Data.Either.Extra (mapLeft)
 import Halo2.Circuit (HasEvaluate (evaluate))
 import qualified Halo2.Types.Argument as C
+import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.Circuit (LogicCircuit)
 import Halo2.Types.RowCount (RowCount (RowCount))
@@ -327,6 +328,7 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
   let tt = logicCircuitToTraceType bitsPerByte logic
       lcM = getMapping bitsPerByte logic
       ac = traceTypeToArithmeticCircuit tt lcM
+      ac' = mungeLookupArguments ac
   t <-
     mapLeft
       ( \(ErrorMessage ann msg) ->
@@ -339,8 +341,14 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
           ErrorMessage ann ("traceToArgument: " <> msg)
       )
       (traceToArgument Nothing tt lcM t)
+  arg' <-
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("mungeArgument: " <> msg)
+      )
+      (mungeArgument ac arg)
   mapLeft
     ( \(ErrorMessage () msg) ->
         ErrorMessage Nothing ("evaluate: " <> msg)
     )
-    (Halo2.Circuit.evaluate () arg ac)
+    (Halo2.Circuit.evaluate () arg' ac')
