@@ -104,13 +104,23 @@ getLookupArgumentInstanceColumns ::
   ArithmeticCircuit ->
   Set ColumnIndex
 getLookupArgumentInstanceColumns c =
-  getLookupArgumentColumns c
+  getLookupArgumentsColumns (c ^. #lookupArguments)
     `Set.intersection` getInstanceColumns c
 
-getLookupArgumentColumns ::
-  ArithmeticCircuit ->
+getLookupArgumentsColumns ::
+  LookupArguments Polynomial ->
   Set ColumnIndex
-getLookupArgumentColumns = todo
+getLookupArgumentsColumns =
+  mconcat . fmap getLookupArgumentColumns
+    . Set.toList . (^. #getLookupArguments)
+
+getLookupArgumentColumns ::
+  LookupArgument Polynomial ->
+  Set ColumnIndex
+getLookupArgumentColumns =
+  Set.fromList
+    . fmap ((^. #unLookupTableColumn) . snd)
+    . (^. #tableMap)
 
 getInstanceColumns ::
   ArithmeticCircuit ->
