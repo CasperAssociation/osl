@@ -23,7 +23,7 @@ import Die (die)
 import Halo2.Types.Argument (Argument)
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
-import Halo2.Types.ColumnType (ColumnType (Advice))
+import Halo2.Types.ColumnType (ColumnType (Advice, Instance))
 import Halo2.Types.LookupArgument (LookupArgument (LookupArgument))
 import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
@@ -125,7 +125,10 @@ getLookupArgumentColumns =
 getInstanceColumns ::
   ArithmeticCircuit ->
   Set ColumnIndex
-getInstanceColumns = todo
+getInstanceColumns =
+  Map.keysSet
+    . Map.filter (== Instance)
+    . (^. #columnTypes . #getColumnTypes)
 
 getFirstUnusedColumnIndex ::
   ArithmeticCircuit ->
