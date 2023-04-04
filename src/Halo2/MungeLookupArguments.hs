@@ -133,7 +133,11 @@ getInstanceColumns =
 getFirstUnusedColumnIndex ::
   ArithmeticCircuit ->
   ColumnIndex
-getFirstUnusedColumnIndex = todo
+getFirstUnusedColumnIndex =
+  fromMaybe 0
+    . fmap fst
+    . Map.lookupMax
+    . (^. #columnTypes . #getColumnTypes)
 
 reorderLookupTableColumns ::
   ArithmeticCircuit ->
