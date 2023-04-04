@@ -12,9 +12,11 @@ module Halo2.MungeLookupArguments
     mungeArgument
   ) where
 
+import Control.Arrow (second)
 import Control.Lens ((.~), (^.))
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Die (die)
@@ -22,8 +24,9 @@ import Halo2.Types.Argument (Argument)
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.ColumnType (ColumnType (Advice))
-import Halo2.Types.LookupArgument (LookupArgument)
+import Halo2.Types.LookupArgument (LookupArgument (LookupArgument))
 import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
+import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import OSL.Types.ErrorMessage (ErrorMessage)
 
@@ -83,7 +86,19 @@ doReplacementOnLookupArgument ::
   InstanceToAdviceMapping ->
   LookupArgument Polynomial ->
   LookupArgument Polynomial
-doReplacementOnLookupArgument = todo
+doReplacementOnLookupArgument m (LookupArgument lbl g t) =
+  LookupArgument lbl g (second (doReplacementOnLookupTableColumn m) <$> t)
+
+doReplacementOnLookupTableColumn ::
+  InstanceToAdviceMapping ->
+  LookupTableColumn ->
+  LookupTableColumn
+doReplacementOnLookupTableColumn
+    (InstanceToAdviceMapping m)
+    (LookupTableColumn c) =
+  LookupTableColumn
+    . fromMaybe c
+      $ Map.lookup c m
 
 getLookupArgumentInstanceColumns ::
   ArithmeticCircuit ->
