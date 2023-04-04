@@ -19,6 +19,7 @@ module Halo2.Circuit
     HasLookupArguments (getLookupArguments),
     fixedValuesToCellMap,
     getLookupTables,
+    getColumnType,
     HasEvaluate (evaluate),
     lessIndicator,
     rowsToCellMap,
@@ -264,6 +265,10 @@ getLookupTables x =
     [ (a ^. #gate, snd <$> (a ^. #tableMap))
       | a <- Set.toList (getLookupArguments x ^. #getLookupArguments)
     ]
+
+getColumnType :: Circuit a b -> ColumnIndex -> Maybe ColumnType
+getColumnType c i =
+  Map.lookup i (c ^. #columnTypes . #getColumnTypes)
 
 class HasColumnVectorToBools a where
   -- Here the a is irrelevant at runtime; it is only passed to select

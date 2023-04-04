@@ -14,16 +14,18 @@ module Halo2.MungeLookupArguments
 
 import Control.Arrow (second)
 import Control.Lens ((.~), (%~), (^.))
+import Data.List (sortBy)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Die (die)
+import Halo2.Circuit (getColumnType)
 import Halo2.Types.Argument (Argument)
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
-import Halo2.Types.ColumnType (ColumnType (Advice, Instance))
+import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.LookupArgument (LookupArgument (LookupArgument))
 import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
@@ -142,14 +144,22 @@ getFirstUnusedColumnIndex =
 reorderLookupTableColumnsInCircuit ::
   ArithmeticCircuit ->
   ArithmeticCircuit
-reorderLookupTableColumnsInCircuit =
+reorderLookupTableColumnsInCircuit c =
   (#lookupArguments . #getLookupArguments)
-    %~ Set.map reorderLookupTableColumnsInLookupArgument
+    %~ Set.map (reorderLookupTableColumnsInLookupArgument c)
+    $ c
 
 reorderLookupTableColumnsInLookupArgument ::
+  ArithmeticCircuit ->
   LookupArgument Polynomial ->
   LookupArgument Polynomial
-reorderLookupTableColumnsInLookupArgument = todo
+reorderLookupTableColumnsInLookupArgument c =
+  (#tableMap) %~ sortBy cmp
+  where
+    cmp (_, LookupTableColumn ci) (_, LookupTableColumn cj) =
+      case (getColumnType c ci, getColumnType c cj) of
+        (Just Advice, Just Fixed) -> GT
+        _ -> LT
 
 mungeArgument ::
   ArithmeticCircuit ->
