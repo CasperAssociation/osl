@@ -13,7 +13,7 @@ module Halo2.MungeLookupArguments
   ) where
 
 import Control.Arrow (second)
-import Control.Lens ((.~), (^.))
+import Control.Lens ((.~), (%~), (^.))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
@@ -39,9 +39,9 @@ newtype InstanceToAdviceMapping =
 
 mungeLookupArguments ::
   ArithmeticCircuit ->
-  Either (ErrorMessage ()) ArithmeticCircuit
+  ArithmeticCircuit
 mungeLookupArguments =
-  reorderLookupTableColumns . replaceInstanceWithAdvice
+  reorderLookupTableColumnsInCircuit . replaceInstanceWithAdvice
 
 replaceInstanceWithAdvice :: ArithmeticCircuit -> ArithmeticCircuit
 replaceInstanceWithAdvice c =
@@ -139,10 +139,17 @@ getFirstUnusedColumnIndex =
     . Map.lookupMax
     . (^. #columnTypes . #getColumnTypes)
 
-reorderLookupTableColumns ::
+reorderLookupTableColumnsInCircuit ::
   ArithmeticCircuit ->
-  Either (ErrorMessage ()) ArithmeticCircuit
-reorderLookupTableColumns = todo
+  ArithmeticCircuit
+reorderLookupTableColumnsInCircuit =
+  (#lookupArguments . #getLookupArguments)
+    %~ Set.map reorderLookupTableColumnsInLookupArgument
+
+reorderLookupTableColumnsInLookupArgument ::
+  LookupArgument Polynomial ->
+  LookupArgument Polynomial
+reorderLookupTableColumnsInLookupArgument = todo
 
 mungeArgument ::
   ArithmeticCircuit ->
