@@ -20,9 +20,9 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Die (die)
-import Halo2.Circuit (getColumnType)
-import Halo2.Types.Argument (Argument)
+import Halo2.Circuit (getColumnType, getRowSet)
+import Halo2.Types.Argument (Argument, Witness (Witness))
+import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
@@ -30,10 +30,7 @@ import Halo2.Types.LookupArgument (LookupArgument (LookupArgument))
 import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
-import OSL.Types.ErrorMessage (ErrorMessage)
-
-todo :: a
-todo = die "todo"
+import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 
 newtype InstanceToAdviceMapping =
   InstanceToAdviceMapping
@@ -171,4 +168,24 @@ replicateInstanceToAdviceInArgument ::
   ArithmeticCircuit ->
   Argument ->
   Either (ErrorMessage ()) Argument
-replicateInstanceToAdviceInArgument = todo
+replicateInstanceToAdviceInArgument c arg = do
+  fs <- getFs
+  pure ((#witness) %~ foldl (.) id fs $ arg)
+  where
+    getFs :: Either (ErrorMessage ()) [Witness -> Witness]
+    getFs = do
+      let InstanceToAdviceMapping m = getInstanceToAdviceMapping c
+      sequence
+        [ do
+            v <-
+              maybe
+                (Left (ErrorMessage () "replicateInstanceToAdviceInArgument: instance value lookup failed"))
+                pure
+                (Map.lookup (CellReference ci ri) (arg ^. #statement . #unStatement))
+            pure $
+              Witness
+                . Map.insert (CellReference cj ri) v
+                . (^. #unWitness)
+          | (ci, cj) <- Map.toList m,
+            ri <- Set.toList $ getRowSet (c ^. #rowCount) Nothing
+        ]
