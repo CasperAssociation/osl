@@ -26,9 +26,9 @@ import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddLookupTable, AddLooku
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.Exponent (Exponent)
--- import Halo2.Types.InputExpression (InputExpression (InputExpression))
+import Halo2.Types.InputExpression (InputExpression (InputExpression))
 import Halo2.Types.Label (Label)
--- import Halo2.Types.LookupArgument (LookupArgument)
+import Halo2.Types.LookupArgument (LookupArgument)
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialVariable (PolynomialVariable (PolynomialVariable))
@@ -161,33 +161,41 @@ getEditSource c =
                        $ getColumnsOfType Advice c
           tabFixedCols = (`Set.member` fixedCols) `filter` tab
           tabAdviceCols = (`Set.member` adviceCols) `filter` tab
-      in "meta.create_dynamic_table(" <> f l <> ", "
+      in "let " <> getTableName tab <> " = meta.create_dynamic_table(" <> f l <> ", "
           <> getLookupTableColumnsSource tabFixedCols
           <> ", " <> getLookupTableColumnsSource tabAdviceCols <> ");"
-    AddLookupArgument _arg -> mempty -- TODO
-      -- getAddLookupArgumentSource arg
+    AddLookupArgument arg ->
+      getAddLookupArgumentSource arg
     _ -> todo
 
 
 f :: Show a => a -> ByteString
 f = encodeUtf8 . pack . show
 
--- getAddLookupArgumentSource :: LookupArgument Polynomial -> ByteString
--- getAddLookupArgumentSource arg =
---   -- TODO: incorporate gate & use a non-fixed lookup argument
---   "meta.lookup(|meta| {\n"
---     <> BS.intercalate "\n"
---          (("       " <>) . getColumnRotationSource
---            <$> Set.toList (getPolynomialVariables arg)) <> "\n"
---     <> "        vec!["
---     <> mconcat
---          [ "            (" <> getPolySource p
---                      <> ", c" <> f c <> "),"
---            | (InputExpression p, LookupTableColumn c)
---                <- arg ^. #tableMap
---          ]
---     <> "        ]"
---     <> "    });"
+getTableName :: [LookupTableColumn] -> ByteString
+getTableName =
+  ("t_" <>) . BS.intercalate "_" . fmap f
+
+getLookupTable :: LookupArgument Polynomial -> [LookupTableColumn]
+getLookupTable = fmap snd . (^. #tableMap)
+
+getAddLookupArgumentSource :: LookupArgument Polynomial -> ByteString
+getAddLookupArgumentSource arg =
+  "meta.lookup_dynamic(&"
+    <> getTableName (getLookupTable arg)
+    <> ", |meta| {\n"
+    <> BS.intercalate "\n"
+         (("       " <>) . getColumnRotationSource
+           <$> Set.toList (getPolynomialVariables arg)) <> "\n"
+    <> "        (" <> getPolySource (arg ^. #gate) <> ", vec!["
+    <> mconcat
+         [ "            (" <> getPolySource p
+                     <> ", c" <> f c <> ".into()),"
+           | (InputExpression p, LookupTableColumn c)
+               <- arg ^. #tableMap
+         ]
+    <> "        ])"
+    <> "    });"
 
 
 getAddGateSource :: Label -> Polynomial -> ByteString
@@ -206,8 +214,13 @@ getPolySource p =
   BS.intercalate " + " (uncurry getMonoSource <$> Map.toList (p ^. #monos))
 
 getMonoSource :: PowerProduct -> Coefficient -> ByteString
-getMonoSource pp c =
-  "Expression::Constant(PrimeField::from_u128(" <> f c <> ")) * " <> getPowerProductSource pp
+getMonoSource pp c
+  | null (pp ^. #getPowerProduct) = getCoefficientSource c
+  | otherwise = getCoefficientSource c <> " * " <> getPowerProductSource pp
+
+getCoefficientSource :: Coefficient -> ByteString
+getCoefficientSource c =
+  "Expression::Constant(PrimeField::from_u128(" <> f c <> "))"
 
 getPowerProductSource :: PowerProduct -> ByteString
 getPowerProductSource pp =
@@ -229,7 +242,7 @@ getColumnRotationSource (PolynomialVariable ci j) =
 
 getLookupTableColumnsSource :: [LookupTableColumn] -> ByteString
 getLookupTableColumnsSource cs =
-  ("[" <>) . (<> "]") . BS.intercalate ", " $
+  ("&[" <>) . (<> "]") . BS.intercalate ", " $
     ("c" <>) . f . (^. #unLookupTableColumn)
       <$> cs
 
