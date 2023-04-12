@@ -3,6 +3,8 @@
 
 module Trace.ToArithmeticCircuit (traceTypeToArithmeticCircuit) where
 
+-- TODO: make all lookup gates binary
+
 import qualified Algebra.Additive as Group
 import Control.Lens ((<&>))
 import Data.List.Extra (foldl')

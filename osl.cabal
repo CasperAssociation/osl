@@ -42,6 +42,7 @@ library
     Halo2.MungeLookupArguments
     Halo2.Polynomial
     Halo2.PowerProduct
+    Halo2.RemoveLookupGates
     Halo2.TruthTable
     Halo2.Types.AIR
     Halo2.Types.ArithmetizationConfig
