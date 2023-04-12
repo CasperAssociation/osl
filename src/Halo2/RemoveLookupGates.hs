@@ -1,9 +1,9 @@
 -- This compiler stage takes an arithmetic circuit and removes the gates from the
 -- lookup arguments (i.e., it sets them to zero).
 --
--- CAUTION: This stage assumes (without checking it) that all lookup argument
--- gate polynomials can only evaluate to zero or one in a satisfying assignment
--- of values.
+-- CAUTION: THIS STAGE ASSUMES (WITHOUT CHECKING IT) THAT ALL LOOKUP ARGUMENT
+-- GATE POLYNOMIALS CAN ONLY EVALUATE TO ZERO OR ONE IN A SATISFYING ASSIGNMENT
+-- OF VALUES.
 --
 -- NOTICE: This stage assumes (and checks) that all polynomial variables have a
 -- relative row offset of zero.
@@ -21,6 +21,9 @@
 -- circuit by adding zeroes in the new dummy row.
 
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 
@@ -30,16 +33,120 @@ module Halo2.RemoveLookupGates
   ) where
 
 
+import Cast (integerToInt)
+import Control.Arrow (second)
+import Control.Lens ((^.))
+import Data.Bool (bool)
+import qualified Data.Map as Map
 import Die (die)
+import GHC.Generics (Generic)
+import Halo2.Circuit (getPolynomialVariables)
 import Halo2.Types.Argument (Argument)
-import Halo2.Types.Circuit (ArithmeticCircuit)
-import OSL.Types.ErrorMessage (ErrorMessage)
+import Halo2.Types.Circuit (Circuit (Circuit), ArithmeticCircuit)
+import Halo2.Types.ColumnIndex (ColumnIndex)
+import Halo2.Types.ColumnType (ColumnType (Advice))
+import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
+import Halo2.Types.FixedValues (FixedValues)
+import Halo2.Types.LookupArguments (LookupArguments)
+import Halo2.Types.Polynomial (Polynomial)
+import Halo2.Types.PolynomialConstraints (PolynomialConstraints (PolynomialConstraints))
+import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
+import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
+import Stark.Types.Scalar (scalarToInteger)
+
+
+newtype DummyRowIndex = DummyRowIndex { unDummyRowIndex :: RowIndex Absolute }
+  deriving Generic
+
+
+newtype DummyRowIndicatorColumnIndex =
+  DummyRowIndicatorColumnIndex
+    { unDummyRowIndicatorColumnIndex :: ColumnIndex }
+  deriving Generic
+
+
+getDummyRowIndex :: ArithmeticCircuit -> DummyRowIndex
+getDummyRowIndex =
+  maybe
+    (die "getDummyRowIndex: row index out of range of int")
+    (DummyRowIndex . RowIndex)
+    . integerToInt . scalarToInteger
+    . (^. #rowCount . #getRowCount)
+
+
+getDummyRowIndicatorColumnIndex ::
+  ArithmeticCircuit ->
+  DummyRowIndicatorColumnIndex
+getDummyRowIndicatorColumnIndex =
+  maybe
+    (DummyRowIndicatorColumnIndex 0)
+    (DummyRowIndicatorColumnIndex . (+1) . fst)
+    . Map.lookupMax
+    . (^. #columnTypes . #getColumnTypes)
 
 
 removeLookupGates ::
   ArithmeticCircuit ->
   Either (ErrorMessage ()) ArithmeticCircuit
-removeLookupGates = todo
+removeLookupGates c = do
+  checkVariableRowOffsetsAreZero c
+  pure $ Circuit
+    ((c ^. #columnTypes) <> ColumnTypes (Map.singleton (dci ^. #unDummyRowIndicatorColumnIndex) Advice))
+    (c ^. #equalityConstrainableColumns)
+    (restrictGateConstraintsToNonDummyRows dri dci (c ^. #gateConstraints))
+    (removeLookupArgumentsGates dri dci (c ^. #lookupArguments))
+    ((c ^. #rowCount) + 1)
+    (c ^. #equalityConstraints)
+    ((c ^. #fixedValues) <> dummyRowFixedValues dri dci c)
+  where
+    dri = getDummyRowIndex c
+    dci = getDummyRowIndicatorColumnIndex c
+
+
+checkVariableRowOffsetsAreZero ::
+  ArithmeticCircuit ->
+  Either (ErrorMessage ()) ()
+checkVariableRowOffsetsAreZero =
+  bool
+    (Left (ErrorMessage () "Halo2.RemoveLookupGates: not all variable row offsets are zero (this is a compiler bug)"))
+    (pure ())
+    . all ((== 0) . (^. #rowIndex))
+    . getPolynomialVariables
+
+
+restrictGateConstraintsToNonDummyRows ::
+  DummyRowIndex ->
+  DummyRowIndicatorColumnIndex ->
+  PolynomialConstraints ->
+  PolynomialConstraints
+restrictGateConstraintsToNonDummyRows dri dci cs =
+  PolynomialConstraints
+    (second (restrictGateConstraintToNonDummyRows dri dci) <$> (cs ^. #constraints))
+    ((cs ^. #degreeBound) + 1)
+
+
+restrictGateConstraintToNonDummyRows ::
+  DummyRowIndex ->
+  DummyRowIndicatorColumnIndex ->
+  Polynomial ->
+  Polynomial
+restrictGateConstraintToNonDummyRows = todo
+
+
+removeLookupArgumentsGates ::
+  DummyRowIndex ->
+  DummyRowIndicatorColumnIndex ->
+  LookupArguments Polynomial ->
+  LookupArguments Polynomial
+removeLookupArgumentsGates = todo
+
+
+dummyRowFixedValues ::
+  DummyRowIndex ->
+  DummyRowIndicatorColumnIndex ->
+  ArithmeticCircuit ->
+  FixedValues (RowIndex Absolute)
+dummyRowFixedValues = todo
 
 
 removeLookupGatesArgumentConversion ::
