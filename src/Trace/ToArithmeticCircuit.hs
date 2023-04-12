@@ -154,9 +154,7 @@ resultChecks t m =
     Set.fromList
       [ LookupArgument
           "resultCheck1"
-          ( P.var' (t ^. #stepIndicatorColumnIndex . #unStepIndicatorColumnIndex)
-              `P.minus` P.one
-          )
+          (stepIndicatorGate t)
           [ (InputExpression (P.var' traceCase), LookupTableColumn fixedCase),
             (InputExpression P.one, LookupTableColumn used)
           ],
