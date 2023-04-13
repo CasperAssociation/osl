@@ -47,7 +47,7 @@ import Halo2.Types.Argument (Argument (Argument), Statement (Statement), Witness
 import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Circuit (Circuit (Circuit), ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
-import Halo2.Types.ColumnType (ColumnType (Advice, Instance))
+import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
 import Halo2.Types.FixedColumn (FixedColumn (FixedColumn))
 import Halo2.Types.FixedValues (FixedValues (FixedValues))
@@ -162,7 +162,7 @@ gateInputExpression ::
   InputExpression Polynomial
 gateInputExpression p =
   InputExpression
-    . (P.times (P.one `P.minus` p))
+    . (P.times p)
     . (^. #getInputExpression)
 
 
@@ -221,6 +221,6 @@ getDummyRowWitness c =
   Witness . Map.fromList $
     [ (CellReference ci ri, zero)
       | (ci, t) <- Map.toList (c ^. #columnTypes . #getColumnTypes),
-        t == Advice,
+        t == Advice || t == Fixed,
         let ri = getDummyRowIndex c ^. #unDummyRowIndex
     ]

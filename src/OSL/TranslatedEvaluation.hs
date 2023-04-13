@@ -284,7 +284,7 @@ evalTranslatedFormula6 ::
   Name ->
   ArgumentForm ->
   Argument ->
-  Either (ErrorMessage (Maybe ann)) Bool
+  Either (ErrorMessage (Maybe ann)) ()
 evalTranslatedFormula6 c name argumentForm argument = do
   (logic, lcArg) <- toLogicCircuit c name argumentForm argument
   mapLeft
@@ -323,7 +323,7 @@ evalTranslatedFormula8 ::
   Name ->
   ArgumentForm ->
   Argument ->
-  Either (ErrorMessage (Maybe ann)) Bool
+  Either (ErrorMessage (Maybe ann)) ()
 evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
   (logic, lcArg) <- toLogicCircuit c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
