@@ -135,7 +135,7 @@ restrictGateConstraintToNonDummyRows ::
   Polynomial ->
   Polynomial
 restrictGateConstraintToNonDummyRows dci p =
-  (P.constant one `P.minus` P.var' (dci ^. #unDummyRowIndicatorColumnIndex))
+  (P.one `P.minus` P.var' (dci ^. #unDummyRowIndicatorColumnIndex))
     `P.times` p
 
 
