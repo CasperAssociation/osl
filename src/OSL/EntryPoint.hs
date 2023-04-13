@@ -225,9 +225,11 @@ calcMain fileName targetName source bitsPerByte rowCount compileToCircuit = do
           <> "\n\nTrace type: "
           <> show (stages ^. #traceType)
           <> "\n\nArithmetic circuit layout:\n"
-          <> show (stages ^. #layout)
+          <> show (stages ^. #circuitLayout)
           <> "\n\nArithmetic circuit:\n"
           <> show (stages ^. #circuit)
+          <> "\n\n\nHalo2-friendly arithmetic circuit:\n"
+          <> show (stages ^. #mungedCircuit)
 
 genActusDictionary :: IO Output
 genActusDictionary =

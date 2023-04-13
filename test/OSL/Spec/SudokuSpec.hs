@@ -125,10 +125,10 @@ exampleSpec c = do
 
   it "Sudoku spec's semantics are preserved in codegen stage 6" $ do
     evalTranslatedFormula6 c "problemIsSolvable" argumentForm (exampleArgument c)
-      `shouldBe` Right True
+      `shouldBe` Right ()
 
     evalTranslatedFormula6 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
-      `shouldBe` Right False
+      `shouldBe` Left (ErrorMessage Nothing "evaluate: \"quantifierFreeFormulaIsTrue\": not satisfied: [(0,Just True),(1,Just True),(2,Just True),(3,Just True),(4,Just True),(5,Just True),(6,Just True),(7,Just True),(8,Just True),(9,Just True),(10,Just True),(11,Just True),(12,Just True),(13,Just True),(14,Just True),(15,Just True),(16,Just True),(17,Just True),(18,Just True),(19,Just True),(20,Just True),(21,Just True),(22,Just True),(23,Just True),(24,Just True),(25,Just True),(26,Just True),(27,Just True),(28,Just True),(29,Just True),(30,Just True),(31,Just True),(32,Just True),(33,Just True),(34,Just True),(35,Just True),(36,Just True),(37,Just True),(38,Just True),(39,Just True),(40,Just True),(41,Just True),(42,Just True),(43,Just True),(44,Just True),(45,Just True),(46,Just True),(47,Just True),(48,Just True),(49,Just True),(50,Just True),(51,Just True),(52,Just True),(53,Just True),(54,Just True),(55,Just True),(56,Just True),(57,Just True),(58,Just True),(59,Just True),(60,Just True),(61,Just True),(62,Just True),(63,Just True),(64,Just True),(65,Just True),(66,Just True),(67,Just True),(68,Just True),(69,Just True),(70,Just True),(71,Just True),(72,Just True),(73,Just True),(74,Just True),(75,Just True),(76,Just True),(77,Just False),(78,Just True),(79,Just True),(80,Just True)]")
 
   it "Sudoku spec's semantics are preserved in codegen stage 7" $ do
     evalTranslatedFormula7 8 c "problemIsSolvable" argumentForm (exampleArgument c)
@@ -139,10 +139,10 @@ exampleSpec c = do
 
   it "Sudoku spec's semantics are preserved in codegen stage 8" $ do
     evalTranslatedFormula8 8 c "problemIsSolvable" argumentForm (exampleArgument c)
-      `shouldBe` Right True
+      `shouldBe` Right ()
 
     evalTranslatedFormula8 8 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
-      `shouldBe` Right False
+      `shouldBe` Left (ErrorMessage Nothing mempty)
 
 exampleArgument :: ValidContext 'Global ann -> Argument
 exampleArgument c =

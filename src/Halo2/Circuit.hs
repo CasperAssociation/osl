@@ -35,10 +35,11 @@ import Cast (intToInteger, integerToInt)
 import Control.Applicative (liftA2)
 import Control.Arrow (first)
 import Control.Lens ((<&>))
-import Control.Monad.Extra (allM, andM, when, (&&^), (||^))
+import Control.Monad.Extra (allM, forM_, andM, when, (&&^), (||^), unless, void)
+import Data.Bool (bool)
 import Data.Either.Extra (mapLeft)
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import qualified Data.Set as Set
 import Data.Text (pack)
 import Data.Tuple.Extra (second, swap, uncurry3)
@@ -527,10 +528,9 @@ instance HasEvaluate (RowCount, LogicConstraint) (Map (RowIndex 'Absolute) (Mayb
     where
       rec = evaluate ann arg
 
-instance HasEvaluate (Map ColumnIndex FixedBound) Bool where
-  evaluate _ arg bs =
-    pure $
-      and
+instance HasEvaluate (Map ColumnIndex FixedBound) () where
+  evaluate ann arg bs =
+    if and
         [ min (toWord64 x) (toWord64 (Group.negate x))
             < b ^. #unFixedBound
           | (ci, b) <- Map.toList bs,
@@ -541,39 +541,47 @@ instance HasEvaluate (Map ColumnIndex FixedBound) Bool where
                     (getCellMap arg)
                 )
         ]
+      then pure ()
+      else Left (ErrorMessage ann "fixed bound not satisfied")
 
-instance HasEvaluate (RowCount, LogicConstraints) Bool where
+instance HasEvaluate (RowCount, LogicConstraints) () where
   evaluate ann arg (rc, LogicConstraints cs bs) = do
-    -- let cols = getCellMapColumns (getCellMap arg)
-    (&&) -- trace ("column sizes: " <> show (Map.size <$> cols)) . (&&)
-      <$> evaluate ann arg bs
-      <*> allM
-        ( \(lbl, c) -> do
-            r <- evaluate ann arg (rc, c)
-            let r' = r == Map.fromList ((,Just True) <$> Set.toList allRows)
-            pure r' -- (trace (show (r', lbl, c, Map.filter (== Just False) r)) r')
-        )
-        cs
+    evaluate ann arg bs
+    forM_ cs
+      ( \(lbl, c) -> do
+          r <- evaluate ann arg (rc, c)
+          unless (r == (Map.fromList ((,Just True) <$> Set.toList allRows)))
+            (Left
+              (ErrorMessage ann
+                (pack (show lbl) <> ": not satisfied on the following rows: "
+                  <> pack (show (Map.toList (Map.filter (/= Just True) r))))))
+      )
     where
       allRows = getRowSet rc Nothing
 
-instance HasEvaluate (RowCount, PolynomialConstraints) Bool where
-  evaluate ann arg (rc, PolynomialConstraints polys degreeBound) = do
-    allM
-      ( \(lbl, poly) ->
-          ( degree poly <= degreeBound ^. #getPolynomialDegreeBound
-              &&
-          )
-            . all (== Just zero)
-            <$> evaluate ann arg (rc, poly)
+instance HasEvaluate (RowCount, PolynomialConstraints) () where
+  evaluate ann arg (rc, PolynomialConstraints polys degreeBound) =
+    forM_ polys
+      ( \(lbl, poly) -> do
+          when (degree poly > degreeBound ^. #getPolynomialDegreeBound)
+            (Left
+              (ErrorMessage ann
+                ("gate constraint exceeds polynomial degree bound: "
+                  <> pack (show (lbl, poly)))))
+          r <- evaluate ann arg (rc, poly)
+          unless (all (== Just zero) r)
+            (Left
+              (ErrorMessage ann
+                (pack (show lbl) <> ": not satisfied on the following rows: "
+                  <> pack (show (Map.toList (Map.filter (/= Just zero) r)))
+                  <> " out of " <> pack (show (Map.size r)))))
       )
-      polys
 
 instance
   ( HasColumnVectorToBools a,
     HasEvaluate (RowCount, a) (Map (RowIndex 'Absolute) (Maybe Scalar))
   ) =>
-  HasEvaluate (RowCount, LookupArgument a) Bool
+  HasEvaluate (RowCount, LookupArgument a) ()
   where
   evaluate ann arg (rc, LookupArgument lbl gate tableMap) = do
     gateVals <- columnVectorToBools gate <$> evaluate ann arg (rc, gate)
@@ -581,58 +589,71 @@ instance
     inputTable <-
       fmap (fmap (fromMaybe (die "Halo2.Circuit.evaluate @LookupArgument: input expression undefined")))
         <$> mapM (evaluate ann arg . (rc,) . (^. #getInputExpression) . fst) tableMap
+    let cellMap = getCellMap arg
+        inputs = zip inputTable (snd <$> tableMap)
     results <-
       getLookupResults
         ann
         rc
         (Just rowSet)
-        (getCellMap arg)
-        (zip inputTable (snd <$> tableMap))
+        cellMap
+        inputs
     let rowSet' =
           Set.fromList . fmap (^. #rowIndex) . Map.keys $
             results
-    pure $ rowSet' == rowSet
+    unless (rowSet' == rowSet)
+      (Left
+        (ErrorMessage ann
+          (pack (show lbl) <> " (lookup argument): not satisfied: \n"
+             <> pack (show (rowSet' `Set.difference` rowSet, Set.size rowSet, Set.size rowSet',
+                              (\ri ->
+                                  ( ri,
+                                    Map.filterWithKey (\k -> const (ri == k ^. #rowIndex)) cellMap,
+                                    first (Map.lookup ri) <$> inputs
+                                  ) )
+                                <$> listToMaybe (Set.toList (rowSet `Set.difference` rowSet')))))))
 
 instance
-  HasEvaluate (RowCount, LookupArgument a) Bool =>
-  HasEvaluate (RowCount, LookupArguments a) Bool
+  HasEvaluate (RowCount, LookupArgument a) () =>
+  HasEvaluate (RowCount, LookupArguments a) ()
   where
   evaluate ann arg =
-    uncurry $ \rc -> allM (evaluate ann arg . (rc,)) . Set.toList . (^. #getLookupArguments)
+    uncurry $ \rc -> mapM_ (evaluate ann arg . (rc,)) . Set.toList . (^. #getLookupArguments)
 
 instance
-  (HasEvaluate (RowCount, a) Bool, HasEvaluate (RowCount, LookupArguments b) Bool) =>
-  HasEvaluate (Circuit a b) Bool
+  (HasEvaluate (RowCount, a) (), HasEvaluate (RowCount, LookupArguments b) ()) =>
+  HasEvaluate (Circuit a b) ()
   where
   evaluate ann arg c =
-    and
-      <$> sequence
-        [ evaluate ann arg (c ^. #columnTypes),
-          evaluate ann arg (c ^. #rowCount),
-          evaluate ann arg (c ^. #rowCount, c ^. #gateConstraints),
-          evaluate ann arg (c ^. #rowCount, c ^. #lookupArguments),
-          evaluate
-            ann
-            arg
-            ( c ^. #equalityConstrainableColumns,
-              c ^. #equalityConstraints
-            ),
-          evaluate ann arg (c ^. #fixedValues)
-        ]
+    void $ sequence
+      [ evaluate ann arg (c ^. #columnTypes),
+        evaluate ann arg (c ^. #rowCount),
+        evaluate ann arg (c ^. #rowCount, c ^. #gateConstraints),
+        evaluate ann arg (c ^. #rowCount, c ^. #lookupArguments),
+        evaluate
+          ann
+          arg
+          ( c ^. #equalityConstrainableColumns,
+            c ^. #equalityConstraints
+          ),
+        evaluate ann arg (c ^. #fixedValues)
+      ]
 
-instance HasEvaluate ColumnTypes Bool where
-  evaluate _ arg (ColumnTypes m) =
-    pure $
-      getColumns (arg ^. #statement . #unStatement)
+instance HasEvaluate ColumnTypes () where
+  evaluate ann arg (ColumnTypes m) =
+    if getColumns (arg ^. #statement . #unStatement)
         == Map.keysSet (Map.filter (== Instance) m)
         && getColumns (arg ^. #witness . #unWitness)
           == Map.keysSet (Map.filter (== Advice) m)
             `Set.union` Map.keysSet (Map.filter (== Fixed) m)
+      then pure ()
+      else Left (ErrorMessage ann "column types are not satisfied by argument")
 
-instance HasEvaluate (FixedValues (RowIndex Absolute)) Bool where
-  evaluate _ arg fvs =
-    pure $
-      fixedValuesToCellMap fvs `Map.isSubmapOf` (arg ^. #witness . #unWitness)
+instance HasEvaluate (FixedValues (RowIndex Absolute)) () where
+  evaluate ann arg fvs =
+    unless
+      (fixedValuesToCellMap fvs `Map.isSubmapOf` (arg ^. #witness . #unWitness))
+      (Left (ErrorMessage ann "correct fixed values need to be present in witness"))
 
 fixedValuesToCellMap :: FixedValues (RowIndex 'Absolute) -> Map CellReference Scalar
 fixedValuesToCellMap (FixedValues m) =
@@ -642,9 +663,10 @@ fixedValuesToCellMap (FixedValues m) =
         (rowIdx, v) <- Map.toList (col ^. #unFixedColumn)
     ]
 
-instance HasEvaluate (EqualityConstrainableColumns, EqualityConstraints) Bool where
-  evaluate _ _ (eqcs, eqs) =
-    pure $ equalityConstraintsMatchEqualityConstrainableColumns eqcs eqs
+instance HasEvaluate (EqualityConstrainableColumns, EqualityConstraints) () where
+  evaluate ann _ (eqcs, eqs) =
+    unless (equalityConstraintsMatchEqualityConstrainableColumns eqcs eqs)
+      (Left (ErrorMessage ann "equality constraints are not satisfied"))
 
 equalityConstraintsMatchEqualityConstrainableColumns ::
   EqualityConstrainableColumns ->
@@ -658,11 +680,12 @@ equalityConstraintsMatchEqualityConstrainableColumns
       f (EqualityConstraint cells) =
         Set.map (^. #colIndex) cells `Set.isSubsetOf` eqcs
 
-instance HasEvaluate RowCount Bool where
-  evaluate _ arg (RowCount n) =
-    pure $
-      f (arg ^. #statement . #unStatement)
-        && f (arg ^. #witness . #unWitness)
+instance HasEvaluate RowCount () where
+  evaluate ann arg (RowCount n) =
+    unless
+      (f (arg ^. #statement . #unStatement)
+        && f (arg ^. #witness . #unWitness))
+      (Left (ErrorMessage ann "argument does not have correct row count"))
     where
       f m =
         let cols = getColumns m
