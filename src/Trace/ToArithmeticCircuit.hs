@@ -3,9 +3,6 @@
 
 module Trace.ToArithmeticCircuit (traceTypeToArithmeticCircuit) where
 
--- TODO: make all lookup gates binary
-
-import qualified Algebra.Additive as Group
 import Control.Lens ((<&>))
 import Data.List.Extra (foldl')
 import qualified Data.Map as Map
@@ -28,7 +25,7 @@ import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.RowIndex (RowIndex (..))
-import Stark.Types.Scalar (one, scalarToInt, zero)
+import Stark.Types.Scalar (scalarToInt)
 import Trace.FromLogicCircuit (Mapping)
 import Trace.ToArithmeticAIR (Mappings, mappings, traceTypeToArithmeticAIR)
 import Trace.Types (StepTypeId, TraceType)
@@ -209,16 +206,8 @@ gateStepTypeLookupArgument ::
 gateStepTypeLookupArgument t sIds arg =
   LookupArgument
     (arg ^. #label)
-    (P.plus (P.times alpha (stepIndicatorGate t)) (stepTypesGate t sIds))
+    ((P.one `P.minus` (stepIndicatorGate t)) `P.times` (P.one `P.minus` stepTypesGate t sIds))
     (arg ^. #tableMap)
-  where
-    alpha =
-      P.constant $
-        foldl'
-          max
-          zero
-          (Map.keys (t ^. #stepTypes) <&> (^. #unStepTypeId))
-          Group.+ one
 
 stepIndicatorGate ::
   TraceType ->

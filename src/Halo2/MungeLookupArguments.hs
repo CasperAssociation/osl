@@ -21,6 +21,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Text (pack)
 import Halo2.Circuit (getColumnType, getRowSet)
 import Halo2.Types.Argument (Argument, Witness (Witness))
 import Halo2.Types.CellReference (CellReference (CellReference))
@@ -181,7 +182,9 @@ replicateInstanceToAdviceInArgument c arg = do
         [ do
             v <-
               maybe
-                (Left (ErrorMessage () "replicateInstanceToAdviceInArgument: instance value lookup failed"))
+                (Left (ErrorMessage ()
+                  ("replicateInstanceToAdviceInArgument: instance value lookup failed"
+                    <> pack (show (ci, ri)))))
                 pure
                 (Map.lookup (CellReference ci ri) (arg ^. #statement . #unStatement))
             pure $
