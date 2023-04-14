@@ -159,8 +159,9 @@ removeLookupArgumentGates (DummyRowIndicatorColumnIndex dci) arg =
   LookupArgument
     (arg ^. #label)
     P.zero
-    ([(InputExpression (P.var' dci), LookupTableColumn dci)] <>
-      (first (gateInputExpression (arg ^. #gate)) <$> (arg ^. #tableMap)))
+    (first (gateInputExpression (arg ^. #gate)) <$>
+      ([(InputExpression (P.var' dci), LookupTableColumn dci)] <>
+        (arg ^. #tableMap)))
 
 
 gateInputExpression ::
@@ -206,7 +207,7 @@ removeLookupGatesArgumentConversion ::
   Argument ->
   Argument
 removeLookupGatesArgumentConversion c arg =
-  arg <> Argument (getDummyRowStatement c) (getDummyRowWitness c)
+  arg <> Argument (getDummyRowStatement c) (getDummyRowWitness c <> getDummyColWitness c)
 
 
 getDummyRowStatement ::
@@ -231,3 +232,16 @@ getDummyRowWitness c =
         t == Advice || t == Fixed,
         let ri = getDummyRowIndex c ^. #unDummyRowIndex
     ]
+
+getDummyColWitness ::
+  ArithmeticCircuit ->
+  Witness
+getDummyColWitness c =
+  Witness . Map.fromList $
+    [ (CellReference ci ri, v)
+      | ri <- [0 .. dri],
+        let ci = getDummyRowIndicatorColumnIndex c ^. #unDummyRowIndicatorColumnIndex,
+        let v = if ri == dri then one else zero
+    ]
+  where
+    dri = getDummyRowIndex c ^. #unDummyRowIndex
