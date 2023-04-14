@@ -107,7 +107,7 @@ removeLookupGates c = do
     (removeLookupArgumentsGates dci (c ^. #lookupArguments))
     ((c ^. #rowCount) + 1)
     (c ^. #equalityConstraints)
-    ((c ^. #fixedValues) <> dummyRowFixedValues dri dci c)
+    ((c ^. #fixedValues) <> dummyRowAndColFixedValues dri dci c)
   where
     dri = getDummyRowIndex c
     dci = getDummyRowIndicatorColumnIndex c
@@ -174,15 +174,16 @@ gateInputExpression p =
     . (^. #getInputExpression)
 
 
-dummyRowFixedValues ::
+dummyRowAndColFixedValues ::
   DummyRowIndex ->
   DummyRowIndicatorColumnIndex ->
   ArithmeticCircuit ->
   FixedValues (RowIndex Absolute)
-dummyRowFixedValues dri dci c =
+dummyRowAndColFixedValues dri dci c =
   FixedValues . Map.fromList
-    $ [ (ci, FixedColumn $ Map.fromList [ (ri, zero) | ri <- [0 .. r'] ])
-        | ci <- Map.keys (c ^. #columnTypes . #getColumnTypes)
+    $ [ (ci, FixedColumn $ Map.fromList [ (r', zero) ])
+        | (ci, t) <- Map.toList (c ^. #columnTypes . #getColumnTypes),
+          t == Fixed
       ]
       <>
       [ (dci ^. #unDummyRowIndicatorColumnIndex,
@@ -229,9 +230,11 @@ getDummyRowWitness c =
   Witness . Map.fromList $
     [ (CellReference ci ri, zero)
       | (ci, t) <- Map.toList (c ^. #columnTypes . #getColumnTypes),
-        t == Advice || t == Fixed,
-        let ri = getDummyRowIndex c ^. #unDummyRowIndex
+        t == Advice || t == Fixed
     ]
+  where
+    ri = getDummyRowIndex c ^. #unDummyRowIndex
+
 
 getDummyColWitness ::
   ArithmeticCircuit ->
@@ -240,8 +243,8 @@ getDummyColWitness c =
   Witness . Map.fromList $
     [ (CellReference ci ri, v)
       | ri <- [0 .. dri],
-        let ci = getDummyRowIndicatorColumnIndex c ^. #unDummyRowIndicatorColumnIndex,
         let v = if ri == dri then one else zero
     ]
   where
     dri = getDummyRowIndex c ^. #unDummyRowIndex
+    ci = getDummyRowIndicatorColumnIndex c ^. #unDummyRowIndicatorColumnIndex
