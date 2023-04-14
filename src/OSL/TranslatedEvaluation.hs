@@ -17,7 +17,7 @@ import Control.Lens ((^.))
 import Data.Either.Extra (mapLeft)
 import Halo2.Circuit (HasEvaluate (evaluate))
 import qualified Halo2.Types.Argument as C
-import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
+-- import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
 import Halo2.RemoveLookupGates (removeLookupGates, removeLookupGatesArgumentConversion)
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.Circuit (LogicCircuit)
@@ -335,7 +335,7 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
           ErrorMessage Nothing ("removeLookupGates: " <> msg)
       )
       (removeLookupGates ac)
-  let ac'' = mungeLookupArguments ac'
+  -- let ac'' = mungeLookupArguments ac'
   t <-
     mapLeft
       ( \(ErrorMessage ann msg) ->
@@ -349,14 +349,15 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
       )
       (traceToArgument Nothing tt lcM t)
   let arg' = removeLookupGatesArgumentConversion ac arg
-  arg'' <-
-    mapLeft
-      ( \(ErrorMessage () msg) ->
-          ErrorMessage Nothing ("mungeArgument: " <> msg)
-      )
-      (mungeArgument ac' arg')
+  -- arg'' <-
+  --   mapLeft
+  --     ( \(ErrorMessage () msg) ->
+  --         ErrorMessage Nothing ("mungeArgument: " <> msg)
+  --     )
+  --     (mungeArgument ac' arg')
   mapLeft
     ( \(ErrorMessage () msg) ->
         ErrorMessage Nothing ("evaluate: " <> msg)
     )
-    (Halo2.Circuit.evaluate () arg'' ac'')
+    (Halo2.Circuit.evaluate () arg' ac')
+    -- (Halo2.Circuit.evaluate () arg'' ac'')

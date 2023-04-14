@@ -159,9 +159,9 @@ removeLookupArgumentGates (DummyRowIndicatorColumnIndex dci) arg =
   LookupArgument
     (arg ^. #label)
     P.zero
-    (first (gateInputExpression (arg ^. #gate)) <$>
-      ([(InputExpression (P.var' dci), LookupTableColumn dci)] <>
-        (arg ^. #tableMap)))
+    ([(InputExpression (P.var' dci `P.times` (P.one `P.minus` (arg ^. #gate))), LookupTableColumn dci)] <>
+     (first (gateInputExpression (arg ^. #gate)) <$>
+      (arg ^. #tableMap)))
 
 
 gateInputExpression ::

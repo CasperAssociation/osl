@@ -591,6 +591,9 @@ instance
         <$> mapM (evaluate ann arg . (rc,) . (^. #getInputExpression) . fst) tableMap
     let cellMap = getCellMap arg
         inputs = zip inputTable (snd <$> tableMap)
+        tableCols = Set.fromList ((^. #unLookupTableColumn) . snd <$> tableMap)
+        rows = Set.map (^. #rowIndex) (Map.keysSet cellMap)
+        lookupTbl = Set.filter (\r -> Map.lookup 131 r == Just (one + one)) $ Set.fromList (Map.elems (getCellMapRows rows (Map.filterWithKey (\k _ -> (k ^. #colIndex) `Set.member` tableCols) cellMap)))
     results <-
       getLookupResults
         ann
@@ -615,7 +618,8 @@ instance
                              Map.filterWithKey (\k -> const (ri == k ^. #rowIndex)) cellMap,
                              first (Map.lookup ri) <$> inputs
                            ) )
-                         <$> listToMaybe (Set.toList (rowSet `Set.difference` rowSet')))))))
+                         <$> listToMaybe (Set.toList (rowSet `Set.difference` rowSet'))))
+             <> "\n" <> pack (show lookupTbl))))
 
 instance
   HasEvaluate (RowCount, LookupArgument a) () =>
