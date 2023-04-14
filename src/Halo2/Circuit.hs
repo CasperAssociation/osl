@@ -605,13 +605,17 @@ instance
       (Left
         (ErrorMessage ann
           (pack (show lbl) <> " (lookup argument): not satisfied: \n"
-             <> pack (show (rowSet' `Set.difference` rowSet, Set.size rowSet, Set.size rowSet',
-                              (\ri ->
-                                  ( ri,
-                                    Map.filterWithKey (\k -> const (ri == k ^. #rowIndex)) cellMap,
-                                    first (Map.lookup ri) <$> inputs
-                                  ) )
-                                <$> listToMaybe (Set.toList (rowSet `Set.difference` rowSet')))))))
+             <> pack
+                  (show
+                     (rowSet' `Set.difference` rowSet,
+                       Set.size rowSet,
+                       Set.size rowSet',
+                       (\ri ->
+                           ( ri,
+                             Map.filterWithKey (\k -> const (ri == k ^. #rowIndex)) cellMap,
+                             first (Map.lookup ri) <$> inputs
+                           ) )
+                         <$> listToMaybe (Set.toList (rowSet `Set.difference` rowSet')))))))
 
 instance
   HasEvaluate (RowCount, LookupArgument a) () =>

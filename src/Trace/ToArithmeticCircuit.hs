@@ -102,6 +102,8 @@ inputChecks t m =
           let y = t ^. #outputColumnIndex . #unOutputColumnIndex
       ]
 
+-- TODO: I had a case column in this check but why? Doesn't make sense to me
+-- in retrospect and so I took it out, but is that right?
 linkChecks ::
   TraceType ->
   Mappings ->
@@ -117,18 +119,16 @@ linkChecks t m =
               -- tau is the step type id
               -- alphas are the input subexpression ids
               -- beta is the output subexpression id
-              (InputExpression <$> ([currentCase, tau] <> alphas <> [beta]))
+              (InputExpression <$> ([tau] <> alphas <> [beta]))
               (LookupTableColumn <$> links)
           )
       ]
   where
-    tau, beta, currentCase :: Polynomial
+    tau, beta :: Polynomial
     alphas :: [Polynomial]
     links :: [ColumnIndex]
-    caseNumber, subexpressionId :: ColumnIndex
-    caseNumber = t ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex
+    subexpressionId :: ColumnIndex
     subexpressionId = m ^. #advice . #output . #unMapping
-    currentCase = P.var' caseNumber
     -- TODO: check that the selection vector values are all in {0,1}
     tau =
       foldr
@@ -140,7 +140,7 @@ linkChecks t m =
     alphas = P.var' <$> ((m ^. #advice . #inputs) <&> (^. #unMapping))
     beta = P.var' subexpressionId
     links =
-      [caseNumber, m ^. #fixed . #stepType . #unMapping]
+      [m ^. #fixed . #stepType . #unMapping]
         <> ((m ^. #fixed . #inputs) <&> (^. #unMapping))
         <> [m ^. #fixed . #output . #unMapping]
 
