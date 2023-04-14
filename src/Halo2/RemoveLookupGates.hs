@@ -16,6 +16,9 @@
 --    and does not change the gate value in any other row.
 --  * A term in each lookup argument input expression which sets the value to zero in
 --    the dummy row and does not change the value in any other row.
+--  * TODO: To each lookup argument, an input whose value is the dummy row indicator
+--    column and whose table column is the dummy row indicator column. This ensures
+--    that we only look up non-dummy rows based on non-dummy input expressions.
 --
 -- Instances and witnesses are compiled into the instances and witnesses for the new
 -- circuit by adding zeroes in the new dummy row.
@@ -54,6 +57,7 @@ import Halo2.Types.FixedValues (FixedValues (FixedValues))
 import Halo2.Types.InputExpression (InputExpression (InputExpression))
 import Halo2.Types.LookupArgument (LookupArgument (LookupArgument))
 import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
+import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialConstraints (PolynomialConstraints (PolynomialConstraints))
 import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
@@ -100,7 +104,7 @@ removeLookupGates c = do
     ((c ^. #columnTypes) <> ColumnTypes (Map.singleton (dci ^. #unDummyRowIndicatorColumnIndex) Advice))
     (c ^. #equalityConstrainableColumns)
     (restrictGateConstraintsToNonDummyRows dci (c ^. #gateConstraints))
-    (removeLookupArgumentsGates (c ^. #lookupArguments))
+    (removeLookupArgumentsGates dci (c ^. #lookupArguments))
     ((c ^. #rowCount) + 1)
     (c ^. #equalityConstraints)
     ((c ^. #fixedValues) <> dummyRowFixedValues dri dci c)
@@ -140,20 +144,23 @@ restrictGateConstraintToNonDummyRows dci p =
 
 
 removeLookupArgumentsGates ::
+  DummyRowIndicatorColumnIndex ->
   LookupArguments Polynomial ->
   LookupArguments Polynomial
-removeLookupArgumentsGates =
-  LookupArguments . Set.map removeLookupArgumentGates . (^. #getLookupArguments)
+removeLookupArgumentsGates dci =
+  LookupArguments . Set.map (removeLookupArgumentGates dci) . (^. #getLookupArguments)
 
 
 removeLookupArgumentGates ::
+  DummyRowIndicatorColumnIndex ->
   LookupArgument Polynomial ->
   LookupArgument Polynomial
-removeLookupArgumentGates arg =
+removeLookupArgumentGates (DummyRowIndicatorColumnIndex dci) arg =
   LookupArgument
     (arg ^. #label)
     P.zero
-    (first (gateInputExpression (arg ^. #gate)) <$> (arg ^. #tableMap))
+    ([(InputExpression (P.var' dci), LookupTableColumn dci)] <>
+      (first (gateInputExpression (arg ^. #gate)) <$> (arg ^. #tableMap)))
 
 
 gateInputExpression ::
