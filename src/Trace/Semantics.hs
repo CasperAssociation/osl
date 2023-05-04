@@ -49,6 +49,7 @@ evalTrace ::
 evalTrace ann tt t = do
   checkAllResultsArePresentForUsedCases ann tt t
   checkAllStepConstraintsAreSatisfied ann tt t
+  -- TODO: check that all step type selection vectors have the correct number of ones
   checkAllEqualityConstraintsAreSatisfied ann tt t
 
 getUsedCases :: Trace -> Set Case
