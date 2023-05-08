@@ -494,6 +494,7 @@ gateConstraints x layout =
       existentialFunctionTablesDefineFunctionsConstraints x layout,
       quantifierFreeFormulaIsTrueConstraints x layout,
       dummyRowIndicatorConstraints x layout,
+      -- TODO: check that instance inputs and outputs are in bounds
       existentialOutputsInBoundsConstraints x layout,
       existentialInputsInBoundsConstraints x layout,
       universalTableConstraints x layout
