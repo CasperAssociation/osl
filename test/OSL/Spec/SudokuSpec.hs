@@ -17,7 +17,7 @@ import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
 import OSL.Spec.Sudoku.Types (Cell (Cell), Col (Col), Digit (Digit), Problem (Problem, unProblem), Row (Row), Solution (Solution, unSolution), Square (Square), SquareCell (SquareCell), SudokuWitness (SudokuWitness), X (X), Y (Y))
-import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8)
+import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
@@ -143,6 +143,21 @@ exampleSpec c = do
 
     evalTranslatedFormula8 8 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
       `shouldBe` Left (ErrorMessage Nothing mempty)
+
+  it "Sudoku spec's semantics are preserved in codegen stage 9" $ do
+    evalTranslatedFormula9 8 c "problemIsSolvable" argumentForm (exampleArgument c)
+      `shouldBe` Right ()
+
+    evalTranslatedFormula9 8 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
+      `shouldBe` Left (ErrorMessage Nothing mempty)
+
+  it "Sudoku spec's semantics are preserved in codegen stage 10" $ do
+    evalTranslatedFormula10 8 c "problemIsSolvable" argumentForm (exampleArgument c)
+      `shouldBe` Right ()
+
+    evalTranslatedFormula10 8 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
+      `shouldBe` Left (ErrorMessage Nothing mempty)
+
 
 exampleArgument :: ValidContext 'Global ann -> Argument
 exampleArgument c =

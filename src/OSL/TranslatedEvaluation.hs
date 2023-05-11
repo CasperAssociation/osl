@@ -10,6 +10,8 @@ module OSL.TranslatedEvaluation
     evalTranslatedFormula6,
     evalTranslatedFormula7,
     evalTranslatedFormula8,
+    evalTranslatedFormula9,
+    evalTranslatedFormula10,
   )
 where
 
@@ -17,7 +19,7 @@ import Control.Lens ((^.))
 import Data.Either.Extra (mapLeft)
 import Halo2.Circuit (HasEvaluate (evaluate))
 import qualified Halo2.Types.Argument as C
--- import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
+import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
 import Halo2.RemoveLookupGates (removeLookupGates, removeLookupGatesArgumentConversion)
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.Circuit (LogicCircuit)
@@ -329,13 +331,44 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
   let tt = logicCircuitToTraceType bitsPerByte logic
       lcM = getMapping bitsPerByte logic
       ac = traceTypeToArithmeticCircuit tt lcM
+  t <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("argumentToTrace: " <> msg)
+      )
+      (argumentToTrace Nothing bitsPerByte logic lcArg)
+  arg <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("traceToArgument: " <> msg)
+      )
+      (traceToArgument Nothing tt lcM t)
+  mapLeft
+    ( \(ErrorMessage () msg) ->
+        ErrorMessage Nothing ("evaluate: " <> msg)
+    )
+    (Halo2.Circuit.evaluate () arg ac)
+
+-- Ninth codegen pass: ArithmeticCircuit -> ArithmeticCircuit (remove lookup gates)
+evalTranslatedFormula9 ::
+  Show ann =>
+  BitsPerByte ->
+  ValidContext t ann ->
+  Name ->
+  ArgumentForm ->
+  Argument ->
+  Either (ErrorMessage (Maybe ann)) ()
+evalTranslatedFormula9 bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+  let tt = logicCircuitToTraceType bitsPerByte logic
+      lcM = getMapping bitsPerByte logic
+      ac = traceTypeToArithmeticCircuit tt lcM
   ac' <-
     mapLeft
       ( \(ErrorMessage () msg) ->
           ErrorMessage Nothing ("removeLookupGates: " <> msg)
       )
       (removeLookupGates ac)
-  -- let ac'' = mungeLookupArguments ac'
   t <-
     mapLeft
       ( \(ErrorMessage ann msg) ->
@@ -349,15 +382,54 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
       )
       (traceToArgument Nothing tt lcM t)
   let arg' = removeLookupGatesArgumentConversion ac arg
-  -- arg'' <-
-  --   mapLeft
-  --     ( \(ErrorMessage () msg) ->
-  --         ErrorMessage Nothing ("mungeArgument: " <> msg)
-  --     )
-  --     (mungeArgument ac' arg')
   mapLeft
     ( \(ErrorMessage () msg) ->
         ErrorMessage Nothing ("evaluate: " <> msg)
     )
     (Halo2.Circuit.evaluate () arg' ac')
-    -- (Halo2.Circuit.evaluate () arg'' ac'')
+
+-- Tenth codegen pass: ArithmeticCircuit -> ArithmeticCircuit (munge lookup arguments)
+evalTranslatedFormula10 ::
+  Show ann =>
+  BitsPerByte ->
+  ValidContext t ann ->
+  Name ->
+  ArgumentForm ->
+  Argument ->
+  Either (ErrorMessage (Maybe ann)) ()
+evalTranslatedFormula10 bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+  let tt = logicCircuitToTraceType bitsPerByte logic
+      lcM = getMapping bitsPerByte logic
+      ac = traceTypeToArithmeticCircuit tt lcM
+  ac' <-
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("removeLookupGates: " <> msg)
+      )
+      (removeLookupGates ac)
+  let ac'' = mungeLookupArguments ac'
+  t <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("argumentToTrace: " <> msg)
+      )
+      (argumentToTrace Nothing bitsPerByte logic lcArg)
+  arg <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("traceToArgument: " <> msg)
+      )
+      (traceToArgument Nothing tt lcM t)
+  let arg' = removeLookupGatesArgumentConversion ac arg
+  arg'' <-
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("mungeArgument: " <> msg)
+      )
+      (mungeArgument ac' arg')
+  mapLeft
+    ( \(ErrorMessage () msg) ->
+        ErrorMessage Nothing ("evaluate: " <> msg)
+    )
+    (Halo2.Circuit.evaluate () arg'' ac'')
