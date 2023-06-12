@@ -3,13 +3,33 @@ use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter},
   poly::Rotation,
-  plonk::{Circuit, Constraint, Constraints, ConstraintSystem, Error, Expression},
+  plonk::{Advice, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression},
 };
+use std::collections::HashMap;
+use std::cmp::{PartialEq, Eq};
+use std::hash::Hash;
 
-pub struct MyCircuit {}
+#[derive(PartialEq)]
+#[derive(Eq)]
+#[derive(Clone)]
+#[derive(Hash)]
+pub struct ColumnIndex {
+  index: u64
+}
 
 #[derive(Clone)]
-pub struct MyConfig {}
+pub struct MyCircuit {
+  // TODO: row count (constant)
+  // TODO: fixed columns (constant)
+  // TODO: advice & instance columns (variable, optional)
+}
+
+#[derive(Clone)]
+pub struct MyConfig {
+  instance_columns: HashMap<ColumnIndex, Column<Instance>>,
+  advice_columns: HashMap<ColumnIndex, Column<Advice>>,
+  fixed_columns: HashMap<ColumnIndex, Column<Fixed>>
+}
 
 impl<F: PrimeField> Circuit<F> for MyCircuit {
   type Config = MyConfig;
@@ -25,5 +45,9 @@ impl<F: PrimeField> Circuit<F> for MyCircuit {
 
   fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
     let selector_all = meta.selector();
+    let mut instance_cols = HashMap::new();
+    let mut advice_cols = HashMap::new();
+    let mut fixed_cols = HashMap::new();
+    // TODO: populate *_cols
     // TODO: enable selector_all on all rows
 

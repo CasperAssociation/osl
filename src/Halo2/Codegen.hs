@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -21,9 +22,11 @@ import Die (die)
 import Halo2.Circuit (getPolynomialVariables)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.MungeLookupArguments (getColumnsOfType)
+import Halo2.Types.CellReference (CellReference)
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddLookupTable, AddLookupArgument, EnableEquality, AddGate))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddLookupTable, AddLookupArgument, EnableEquality, AddGate))
 import Halo2.Types.Coefficient (Coefficient)
+import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.Exponent (Exponent)
 import Halo2.Types.InputExpression (InputExpression (InputExpression))
@@ -33,10 +36,12 @@ import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialVariable (PolynomialVariable (PolynomialVariable))
 import Halo2.Types.PowerProduct (PowerProduct)
+import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
 import OSL.Types.ErrorMessage (ErrorMessage)
+import Stark.Types.Scalar (Scalar)
 import System.Directory (createDirectoryIfMissing)
 import Text.RawString.QQ (r)
 
@@ -136,7 +141,11 @@ getLibSource c = do
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
     postlude = [r|
-    MyConfig {}
+    MyConfig {
+      instance_columns: instance_cols,
+      advice_columns: advice_cols,
+      fixed_columns:  fixed_cols
+    }
   }
 }
 |]
@@ -145,11 +154,14 @@ getEditSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
 getEditSource c =
   \case
     AddColumn ci Advice ->
-      "let c" <> f ci <> " = meta.advice_column();"
+      "let c" <> f ci <> " = meta.advice_column();\n"
+        <> "advice_cols.insert(ColumnIndex {index:" <> f ci <> "}, c" <> f ci <> ");"
     AddColumn ci Instance ->
-      "let c" <> f ci <> " = meta.instance_column();"
+      "let c" <> f ci <> " = meta.instance_column();\n"
+        <> "instance_cols.insert(ColumnIndex {index:" <> f ci <> "}, c" <> f ci <> ");"
     AddColumn ci Fixed ->
-      "let c" <> f ci <> " = meta.fixed_column();"
+      "let c" <> f ci <> " = meta.fixed_column();\n"
+        <> "fixed_cols.insert(ColumnIndex {index:" <> f ci <> "}, c" <> f ci <> ");"
     EnableEquality ci ->
       "meta.enable_equality(c" <> f ci <> ");"
     AddGate l p ->
@@ -166,7 +178,10 @@ getEditSource c =
           <> ", " <> getLookupTableColumnsSource tabAdviceCols <> ");"
     AddLookupArgument arg ->
       getAddLookupArgumentSource arg
-    _ -> todo
+    AddEqualityConstraint eq ->
+      getAddEqualityConstraintSource eq
+    AddFixedColumn ci fvs ->
+      getAddFixedColumnSource ci fvs
 
 
 f :: Show a => a -> ByteString
@@ -246,8 +261,11 @@ getLookupTableColumnsSource cs =
     ("c" <>) . f . (^. #unLookupTableColumn)
       <$> cs
 
-todo :: a
-todo = die "todo"
+getAddEqualityConstraintSource :: Set.Set CellReference -> ByteString
+getAddEqualityConstraintSource _ = mempty -- TODO
+
+getAddFixedColumnSource :: ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
+getAddFixedColumnSource _ _ = mempty -- TODO
 
 writeStaticFile :: FilePath -> ByteString -> TargetDirectory -> IO ()
 writeStaticFile filename contents (TargetDirectory targetDir) =
