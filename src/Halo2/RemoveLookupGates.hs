@@ -16,7 +16,7 @@
 --    and does not change the gate value in any other row.
 --  * A term in each lookup argument input expression which sets the value to zero in
 --    the dummy row and does not change the value in any other row.
---  * TODO: To each lookup argument, an input whose value is the dummy row indicator
+--  * To each lookup argument, an input whose value is the dummy row indicator
 --    column and whose table column is the dummy row indicator column. This ensures
 --    that we only look up non-dummy rows based on non-dummy input expressions.
 --
