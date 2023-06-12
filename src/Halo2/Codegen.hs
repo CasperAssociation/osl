@@ -187,7 +187,7 @@ getAddLookupArgumentSource arg =
     <> BS.intercalate "\n"
          (("       " <>) . getColumnRotationSource
            <$> Set.toList (getPolynomialVariables arg)) <> "\n"
-    <> "        (" <> getPolySource (arg ^. #gate) <> ", vec!["
+    <> "        (selector_all, vec!["
     <> mconcat
          [ "            (" <> getPolySource p
                      <> ", c" <> f c <> ".into()),"

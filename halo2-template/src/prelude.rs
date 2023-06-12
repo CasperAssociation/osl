@@ -24,4 +24,6 @@ impl<F: PrimeField> Circuit<F> for MyCircuit {
   }
 
   fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+    let selector_all = meta.selector();
+    // TODO: enable selector_all on all rows
 
