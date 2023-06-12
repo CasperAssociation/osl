@@ -52,6 +52,8 @@ import Halo2.Types.Circuit (Circuit (Circuit), ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
+import Halo2.Types.EqualityConstraints (EqualityConstraints (EqualityConstraints))
+import Halo2.Types.EqualityConstraint (EqualityConstraint (EqualityConstraint))
 import Halo2.Types.FixedColumn (FixedColumn (FixedColumn))
 import Halo2.Types.FixedValues (FixedValues (FixedValues))
 import Halo2.Types.InputExpression (InputExpression (InputExpression))
@@ -106,11 +108,23 @@ removeLookupGates c = do
     (restrictGateConstraintsToNonDummyRows dci (c ^. #gateConstraints))
     (removeLookupArgumentsGates dci (c ^. #lookupArguments))
     ((c ^. #rowCount) + 1)
-    (c ^. #equalityConstraints)
+    ((c ^. #equalityConstraints) <> getDummyRowEqualityConstraints dri c)
     ((c ^. #fixedValues) <> dummyRowAndColFixedValues dri dci c)
   where
     dri = getDummyRowIndex c
     dci = getDummyRowIndicatorColumnIndex c
+
+
+getDummyRowEqualityConstraints ::
+  DummyRowIndex ->
+  ArithmeticCircuit ->
+  EqualityConstraints
+getDummyRowEqualityConstraints dri c =
+  EqualityConstraints . (:[]) . EqualityConstraint
+    $ Set.fromList
+        [ (CellReference ci (dri ^. #unDummyRowIndex))
+          | ci <- Map.keys (c ^. #columnTypes . #getColumnTypes)
+        ]
 
 
 checkVariableRowOffsetsAreZero ::
@@ -159,7 +173,8 @@ removeLookupArgumentGates (DummyRowIndicatorColumnIndex dci) arg =
   LookupArgument
     (arg ^. #label)
     P.zero
-    ([(InputExpression (P.var' dci `P.times` (P.one `P.minus` (arg ^. #gate))), LookupTableColumn dci)] <>
+    ([(InputExpression (P.var' dci `P.times` (P.one `P.minus` (arg ^. #gate))),
+       LookupTableColumn dci)] <>
      (first (gateInputExpression (arg ^. #gate)) <$>
       (arg ^. #tableMap)))
 
