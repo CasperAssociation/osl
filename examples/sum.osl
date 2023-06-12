@@ -1,0 +1,3 @@
+def sumIs : N -> N -> N -> Prop
+  := \a : N => \b : N => \c : N
+  => (a +N b) = c.
