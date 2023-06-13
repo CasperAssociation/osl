@@ -5,9 +5,11 @@ use halo2_proofs::{
   poly::Rotation,
   plonk::{Advice, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression},
 };
+use pasta_curves::Fp;
 use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
 use std::hash::Hash;
+use std::option::{Option, Option::None};
 
 #[derive(PartialEq)]
 #[derive(Eq)]
@@ -21,7 +23,8 @@ pub struct ColumnIndex {
 pub struct MyCircuit {
   // TODO: row count (constant)
   // TODO: fixed columns (constant)
-  // TODO: advice & instance columns (variable, optional)
+  instance_data: Option<HashMap<ColumnIndex, Vec<Fp>>>,
+  advice_data: Option<HashMap<ColumnIndex, Vec<Fp>>>
 }
 
 #[derive(Clone)]
@@ -36,7 +39,7 @@ impl<F: PrimeField> Circuit<F> for MyCircuit {
   type FloorPlanner = SimpleFloorPlanner;
 
   fn without_witnesses(&self) -> Self {
-    MyCircuit {}
+    MyCircuit {instance_data: None, advice_data: None}
   }
 
   fn synthesize(&self, _config: Self::Config, _layouter: impl Layouter<F>) -> Result<(), Error> {
