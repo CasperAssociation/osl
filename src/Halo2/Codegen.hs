@@ -144,7 +144,15 @@ getLibSource c = do
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
     postlude = [r|
-      // TODO: process equality constraints & fixed values
+      // TODO: process fixed values
+      for cells in &equality_constraints {
+        if cells.len() > 0 {
+          let cell0 = cells[0];
+          for cell in &cells[1..] {
+            region.constrain_equal(cell0, *cell);
+          }
+        }
+      }
       Ok(())
     });
     Ok(())
