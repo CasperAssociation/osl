@@ -22,11 +22,11 @@ import Die (die)
 import Halo2.Circuit (getPolynomialVariables)
 import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.MungeLookupArguments (getColumnsOfType)
-import Halo2.Types.CellReference (CellReference)
+import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddLookupTable, AddLookupArgument, EnableEquality, AddGate))
 import Halo2.Types.Coefficient (Coefficient)
-import Halo2.Types.ColumnIndex (ColumnIndex)
+import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.Exponent (Exponent)
 import Halo2.Types.InputExpression (InputExpression (InputExpression))
@@ -36,7 +36,7 @@ import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialVariable (PolynomialVariable (PolynomialVariable))
 import Halo2.Types.PowerProduct (PowerProduct)
-import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
+import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
@@ -134,24 +134,41 @@ getLibSource c = do
     mconcat
       [ prelude,
         BS.intercalate "\n"
-          (("    " <>) . getEditSource c <$> edits),
+          (("    " <>) . getEditConfigureSource c <$> edits),
+        interlude,
+        BS.intercalate "\n"
+          (("      " <>) . getEditSynthesizeSource c <$> edits),
         postlude
       ]
   where
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
     postlude = [r|
+      // TODO: process equality constraints & fixed values
+      Ok(())
+    });
+    Ok(())
+  }
+}
+|]
+
+    interlude = [r|
     MyConfig {
       instance_columns: instance_cols,
       advice_columns: advice_cols,
       fixed_columns:  fixed_cols
     }
   }
-}
+
+  fn synthesize(&self, config: Self::Config, mut layouter: impl Layouter<F>) -> Result<(), Error> {
+    layouter.assign_region(|| "region", |mut region| {
+      let ri = RegionIndex::from(0);
+      let mut equality_constraints: Vec<Vec<Cell>> = Vec::new();
+      let mut fixed_values: HashMap<ColumnIndex, Vec<Fp>> = HashMap::new();
 |]
 
-getEditSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
-getEditSource c =
+getEditConfigureSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
+getEditConfigureSource c =
   \case
     AddColumn ci Advice ->
       "let c" <> f ci <> " = meta.advice_column();\n"
@@ -178,10 +195,22 @@ getEditSource c =
           <> ", " <> getLookupTableColumnsSource tabAdviceCols <> ");"
     AddLookupArgument arg ->
       getAddLookupArgumentSource arg
+    AddEqualityConstraint {} -> mempty
+    AddFixedColumn {} -> mempty
+
+
+getEditSynthesizeSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
+getEditSynthesizeSource _c =
+  \case
     AddEqualityConstraint eq ->
       getAddEqualityConstraintSource eq
     AddFixedColumn ci fvs ->
       getAddFixedColumnSource ci fvs
+    AddColumn {} -> mempty
+    EnableEquality {} -> mempty
+    AddGate {} -> mempty
+    AddLookupTable {} -> mempty
+    AddLookupArgument {} -> mempty
 
 
 f :: Show a => a -> ByteString
@@ -262,7 +291,15 @@ getLookupTableColumnsSource cs =
       <$> cs
 
 getAddEqualityConstraintSource :: Set.Set CellReference -> ByteString
-getAddEqualityConstraintSource _ = mempty -- TODO
+getAddEqualityConstraintSource cs =
+  "equality_constraints.push(vec!["
+    <> BS.intercalate ", "
+         ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
+           "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
+             <> ", column: (*config.advice_columns.get(&ColumnIndex { index: "
+             <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into() }")
+           <$> Set.toList cs)
+    <> "]);"
 
 getAddFixedColumnSource :: ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
 getAddFixedColumnSource _ _ = mempty -- TODO

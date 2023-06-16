@@ -1,7 +1,7 @@
 use ff::PrimeField;
 use halo2_proofs::{
   arithmetic::Field,
-  circuit::{SimpleFloorPlanner, Layouter},
+  circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex},
   poly::Rotation,
   plonk::{Advice, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression},
 };
@@ -19,12 +19,8 @@ pub struct ColumnIndex {
   index: u64
 }
 
-#[derive(Clone)]
-pub struct MyCircuit {
-  // TODO: row count (constant)
-  // TODO: fixed columns (constant)
-  instance_data: Option<HashMap<ColumnIndex, Vec<Fp>>>,
-  advice_data: Option<HashMap<ColumnIndex, Vec<Fp>>>
+pub struct RowIndex {
+  index: u64
 }
 
 #[derive(Clone)]
@@ -32,6 +28,14 @@ pub struct MyConfig {
   instance_columns: HashMap<ColumnIndex, Column<Instance>>,
   advice_columns: HashMap<ColumnIndex, Column<Advice>>,
   fixed_columns: HashMap<ColumnIndex, Column<Fixed>>
+}
+
+pub const row_count: u64 = 1; // TODO
+
+#[derive(Clone)]
+pub struct MyCircuit {
+  instance_data: Option<HashMap<ColumnIndex, Vec<Fp>>>,
+  advice_data: Option<HashMap<ColumnIndex, Vec<Fp>>>
 }
 
 impl<F: PrimeField> Circuit<F> for MyCircuit {
@@ -42,15 +46,10 @@ impl<F: PrimeField> Circuit<F> for MyCircuit {
     MyCircuit {instance_data: None, advice_data: None}
   }
 
-  fn synthesize(&self, _config: Self::Config, _layouter: impl Layouter<F>) -> Result<(), Error> {
-    Ok(())
-  }
-
   fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
     let selector_all = meta.selector();
     let mut instance_cols = HashMap::new();
     let mut advice_cols = HashMap::new();
     let mut fixed_cols = HashMap::new();
-    // TODO: populate *_cols
     // TODO: enable selector_all on all rows
 
