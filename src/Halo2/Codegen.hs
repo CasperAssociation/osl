@@ -144,6 +144,16 @@ getLibSource c = do
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
     postlude = [r|
+      for hm in advice_data.into_iter() {
+        for (ci, xs) in hm.iter() {
+          for (ri, x) in xs.iter().enumerate() {
+            let col = config.advice_columns.get(ci).unwrap();
+            region
+              .assign_advice(|| "", *col, ri, || Value::known(Assigned::from(x)))
+              .unwrap();
+          }
+        }
+      }
       for (ci, xs) in &fixed_values {
         for (ri, x) in xs.iter().enumerate() {
           let col = config.fixed_columns.get(ci).unwrap();
@@ -175,6 +185,7 @@ getLibSource c = do
   }
 
   fn synthesize(&self, config: Self::Config, mut layouter: impl Layouter<F>) -> Result<(), Error> {
+    let advice_data = &(self.advice_data);
     layouter.assign_region(|| "region", |mut region| {
       let ri = RegionIndex::from(0);
       let mut equality_constraints: Vec<Vec<Cell>> = Vec::new();

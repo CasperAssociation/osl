@@ -5,7 +5,6 @@ use halo2_proofs::{
   poly::Rotation,
   plonk::{Advice, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression},
 };
-use pasta_curves::Fp;
 use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
 use std::hash::Hash;
@@ -33,12 +32,12 @@ pub struct MyConfig {
 pub const ROW_COUNT: u64 = 1; // TODO: set correct row count
 
 #[derive(Clone)]
-pub struct MyCircuit {
-  instance_data: Option<HashMap<ColumnIndex, Vec<Fp>>>,
-  advice_data: Option<HashMap<ColumnIndex, Vec<Fp>>>
+pub struct MyCircuit<F> {
+  instance_data: Option<HashMap<ColumnIndex, Vec<F>>>,
+  advice_data: Option<HashMap<ColumnIndex, Vec<F>>>
 }
 
-impl<F: PrimeField> Circuit<F> for MyCircuit {
+impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
   type Config = MyConfig;
   type FloorPlanner = SimpleFloorPlanner;
 
