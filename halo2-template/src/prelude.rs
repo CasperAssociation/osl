@@ -30,7 +30,7 @@ pub struct MyConfig {
   fixed_columns: HashMap<ColumnIndex, Column<Fixed>>
 }
 
-pub const row_count: u64 = 1; // TODO
+pub const ROW_COUNT: u64 = 1; // TODO: set correct row count
 
 #[derive(Clone)]
 pub struct MyCircuit {

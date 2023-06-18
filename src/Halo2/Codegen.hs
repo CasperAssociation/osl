@@ -149,13 +149,12 @@ getLibSource c = do
         if cells.len() > 0 {
           let cell0 = cells[0];
           for cell in &cells[1..] {
-            region.constrain_equal(cell0, *cell);
+            region.constrain_equal(cell0, *cell).unwrap();
           }
         }
       }
       Ok(())
-    });
-    Ok(())
+    })
   }
 }
 |]
