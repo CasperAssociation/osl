@@ -3,7 +3,7 @@ use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
   poly::Rotation,
-  plonk::{Advice, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression},
+  plonk::{Advice, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression, Selector},
 };
 use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
@@ -26,5 +26,6 @@ pub struct RowIndex {
 pub struct MyConfig {
   instance_columns: HashMap<ColumnIndex, Column<Instance>>,
   advice_columns: HashMap<ColumnIndex, Column<Advice>>,
-  fixed_columns: HashMap<ColumnIndex, Column<Fixed>>
+  fixed_columns: HashMap<ColumnIndex, Column<Fixed>>,
+  selector_all: Selector
 }

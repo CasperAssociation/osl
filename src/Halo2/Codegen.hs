@@ -133,7 +133,7 @@ getLibSource c = do
   pure $
     mconcat
       [ prelude,
-        "\npub const ROW_COUNT: u64 = "
+        "\npub const ROW_COUNT: usize = "
           <> encodeUtf8 (pack (show (c ^. #rowCount . #getRowCount)))
           <> ";\n",
         interludeA,
@@ -146,6 +146,7 @@ getLibSource c = do
       ]
   where
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
+
 
     interludeA = [r|
 #[derive(Clone)]
@@ -167,11 +168,34 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
     let mut instance_cols = HashMap::new();
     let mut advice_cols = HashMap::new();
     let mut fixed_cols = HashMap::new();
-    // TODO: enable selector_all on all rows
 
 |]
 
+
+    interludeB = [r|
+    MyConfig {
+      instance_columns: instance_cols,
+      advice_columns: advice_cols,
+      fixed_columns:  fixed_cols,
+      selector_all: selector_all
+    }
+  }
+
+  fn synthesize(&self, config: Self::Config, mut layouter: impl Layouter<F>) -> Result<(), Error> {
+    let advice_data = &(self.advice_data);
+    layouter.assign_region(|| "region", |mut region| {
+      let ri = RegionIndex::from(0);
+      let mut equality_constraints: Vec<Vec<Cell>> = Vec::new();
+      let mut fixed_values: HashMap<ColumnIndex, Vec<F>> = HashMap::new();
+|]
+
+
     postlude = [r|
+      for i in 0 .. (ROW_COUNT-1) {
+        config.selector_all
+          .enable(&mut region, i)
+          .unwrap();
+      }
       for hm in advice_data.into_iter() {
         for (ci, xs) in hm.iter() {
           for (ri, x) in xs.iter().enumerate() {
@@ -204,21 +228,6 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
 }
 |]
 
-    interludeB = [r|
-    MyConfig {
-      instance_columns: instance_cols,
-      advice_columns: advice_cols,
-      fixed_columns:  fixed_cols
-    }
-  }
-
-  fn synthesize(&self, config: Self::Config, mut layouter: impl Layouter<F>) -> Result<(), Error> {
-    let advice_data = &(self.advice_data);
-    layouter.assign_region(|| "region", |mut region| {
-      let ri = RegionIndex::from(0);
-      let mut equality_constraints: Vec<Vec<Cell>> = Vec::new();
-      let mut fixed_values: HashMap<ColumnIndex, Vec<F>> = HashMap::new();
-|]
 
 getEditConfigureSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
 getEditConfigureSource c =
