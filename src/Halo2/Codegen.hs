@@ -144,7 +144,14 @@ getLibSource c = do
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
     postlude = [r|
-      // TODO: process fixed values
+      for (ci, xs) in &fixed_values {
+        for (ri, x) in xs.iter().enumerate() {
+          let col = config.fixed_columns.get(ci).unwrap();
+          region
+            .assign_fixed(|| "", *col, ri, || Value::known(Assigned::from(x)))
+            .unwrap();
+        }
+      }
       for cells in &equality_constraints {
         if cells.len() > 0 {
           let cell0 = cells[0];
@@ -171,7 +178,7 @@ getLibSource c = do
     layouter.assign_region(|| "region", |mut region| {
       let ri = RegionIndex::from(0);
       let mut equality_constraints: Vec<Vec<Cell>> = Vec::new();
-      let mut fixed_values: HashMap<ColumnIndex, Vec<Fp>> = HashMap::new();
+      let mut fixed_values: HashMap<ColumnIndex, Vec<F>> = HashMap::new();
 |]
 
 getEditConfigureSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
@@ -308,8 +315,19 @@ getAddEqualityConstraintSource cs =
            <$> Set.toList cs)
     <> "]);"
 
+
+-- NOTE: this assumes that the row indices are contiguous starting at zero,
+-- and will output the wrong answer if not.
 getAddFixedColumnSource :: ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
-getAddFixedColumnSource _ _ = mempty -- TODO
+getAddFixedColumnSource ci xs =
+  "fixed_values.insert(ColumnIndex {index:"
+    <> encodeUtf8 (pack (show ci))
+    <> "}, vec!["
+    <> BS.intercalate ","
+         ((<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
+           <$> Map.elems xs)
+    <> "]);"
+       
 
 writeStaticFile :: FilePath -> ByteString -> TargetDirectory -> IO ()
 writeStaticFile filename contents (TargetDirectory targetDir) =

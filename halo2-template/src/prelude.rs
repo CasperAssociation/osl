@@ -1,9 +1,9 @@
 use ff::PrimeField;
 use halo2_proofs::{
   arithmetic::Field,
-  circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex},
+  circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
   poly::Rotation,
-  plonk::{Advice, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression},
+  plonk::{Advice, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression},
 };
 use pasta_curves::Fp;
 use std::collections::HashMap;
