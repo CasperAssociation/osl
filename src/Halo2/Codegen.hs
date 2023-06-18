@@ -133,15 +133,43 @@ getLibSource c = do
   pure $
     mconcat
       [ prelude,
+        "\npub const ROW_COUNT: u64 = "
+          <> encodeUtf8 (pack (show (c ^. #rowCount . #getRowCount)))
+          <> ";\n",
+        interludeA,
         BS.intercalate "\n"
           (("    " <>) . getEditConfigureSource c <$> edits),
-        interlude,
+        interludeB,
         BS.intercalate "\n"
           (("      " <>) . getEditSynthesizeSource c <$> edits),
         postlude
       ]
   where
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
+
+    interludeA = [r|
+#[derive(Clone)]
+pub struct MyCircuit<F> {
+  instance_data: Option<HashMap<ColumnIndex, Vec<F>>>,
+  advice_data: Option<HashMap<ColumnIndex, Vec<F>>>
+}
+
+impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
+  type Config = MyConfig;
+  type FloorPlanner = SimpleFloorPlanner;
+
+  fn without_witnesses(&self) -> Self {
+    MyCircuit {instance_data: None, advice_data: None}
+  }
+
+  fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+    let selector_all = meta.selector();
+    let mut instance_cols = HashMap::new();
+    let mut advice_cols = HashMap::new();
+    let mut fixed_cols = HashMap::new();
+    // TODO: enable selector_all on all rows
+
+|]
 
     postlude = [r|
       for hm in advice_data.into_iter() {
@@ -176,7 +204,7 @@ getLibSource c = do
 }
 |]
 
-    interlude = [r|
+    interludeB = [r|
     MyConfig {
       instance_columns: instance_cols,
       advice_columns: advice_cols,
