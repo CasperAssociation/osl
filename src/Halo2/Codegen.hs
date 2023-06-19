@@ -151,7 +151,6 @@ getLibSource c = do
     interludeA = [r|
 #[derive(Clone)]
 pub struct MyCircuit<F> {
-  instance_data: Option<HashMap<ColumnIndex, Vec<F>>>,
   advice_data: Option<HashMap<ColumnIndex, Vec<F>>>
 }
 
@@ -160,7 +159,7 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
   type FloorPlanner = SimpleFloorPlanner;
 
   fn without_witnesses(&self) -> Self {
-    MyCircuit {instance_data: None, advice_data: None}
+    MyCircuit {advice_data: None}
   }
 
   fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
