@@ -1,6 +1,4 @@
-# Halo 2 example (with Nix)
-
-## Usage
+# OSL Halo 2 output template
 
 To get a dev shell:
 
@@ -8,12 +6,13 @@ To get a dev shell:
 nix develop
 ```
 
-Starting a dev shell should output the following usage instructions:
+To update the `Cargo.nix` and `flake.lock` files after changing `Cargo.toml`:
 
 ```
-Commands:
-  gen_proof a b    a and b are numbers and the proof is written
-                   to ./proof
-  verify c         c = a * b and the proof is read from ./proof
-  help             show this message
+ $ nix develop
+ [nix-develop-osl-output] cargo build
+ [nix-develop-osl-output] exit
+ $ nix run github:cargo2nix/cargo2nix
 ```
+
+Running `cargo build` ensures that the `Cargo.lock` file is up to date before running `cargo2nix`.
