@@ -9,11 +9,11 @@ use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
 use std::hash::Hash;
 use std::option::{Option, Option::None};
+use serde::{Serialize, Deserialize};
+use warp::Filter;
+use pasta_curves::Fp;
 
-#[derive(PartialEq)]
-#[derive(Eq)]
-#[derive(Clone)]
-#[derive(Hash)]
+#[derive(PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
 pub struct ColumnIndex {
   index: u64
 }
