@@ -1,4 +1,4 @@
-use ff::PrimeField;
+use ff::{FromUniformBytes, PrimeField};
 use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
@@ -13,7 +13,7 @@ use serde::{Serialize, Deserialize};
 use warp::Filter;
 use pasta_curves::Fp;
 
-#[derive(PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Serialize, Deserialize)]
 pub struct ColumnIndex {
   index: u64
 }
