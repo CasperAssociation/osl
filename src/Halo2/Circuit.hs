@@ -37,6 +37,8 @@ import Control.Arrow (first)
 import Control.Lens ((<&>))
 import Control.Monad.Extra (allM, forM_, andM, when, (&&^), (||^), unless, void)
 import Data.Bool (bool)
+import Data.Vector (Vector)
+import qualified Data.Vector as Vec
 import Data.Either.Extra (mapLeft)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe, listToMaybe)
@@ -274,7 +276,7 @@ getColumnType c i =
 class HasColumnVectorToBools a where
   -- Here the a is irrelevant at runtime; it is only passed to select
   -- the correct implementation.
-  columnVectorToBools :: a -> Map (RowIndex 'Absolute) (Maybe Scalar) -> Map (RowIndex 'Absolute) Bool
+  columnVectorToBools :: a -> Vector (Maybe Scalar) -> Vector Bool
 
 instance HasColumnVectorToBools Polynomial where
   columnVectorToBools _ = fmap (== Just zero)
@@ -285,9 +287,15 @@ instance HasColumnVectorToBools Term where
 class HasEvaluate a b | a -> b where
   evaluate :: ann -> Argument -> a -> Either (ErrorMessage ann) b
 
-instance HasEvaluate (RowCount, PolynomialVariable) (Map (RowIndex 'Absolute) Scalar) where
+instance HasEvaluate (RowCount, PolynomialVariable) (Vector Scalar) where
   evaluate _ arg (RowCount n, v) =
-    pure . Map.mapKeys ((`mod` n') . subtract (RowIndex $ v ^. #rowIndex . #getRowIndex) . (^. #rowIndex)) $
+    pure
+      . Vec.fromList
+      . Map.elems
+      . Map.mapKeys
+          ((`mod` n') .
+            subtract (RowIndex $ v ^. #rowIndex . #getRowIndex) .
+            (^. #rowIndex)) $
       Map.filterWithKey
         (\k _ -> (k ^. #colIndex) == v ^. #colIndex)
         (getCellMap arg)
@@ -297,7 +305,7 @@ instance HasEvaluate (RowCount, PolynomialVariable) (Map (RowIndex 'Absolute) Sc
 instance
   HasEvaluate
     (RowCount, (PowerProduct, Coefficient))
-    (Map (RowIndex 'Absolute) Scalar)
+    (Vector Scalar)
   where
   evaluate ann arg (RowCount n, (PowerProduct m, Coefficient c)) =
     if Map.null m
@@ -305,20 +313,34 @@ instance
         n' <- case integerToInt (scalarToInteger n) of
           Just n' -> pure n'
           Nothing -> Left (ErrorMessage ann "row count outside range of Int")
-        pure (Map.fromList ((,c) . RowIndex <$> [0 .. n' - 1]))
+        pure (Vec.fromList (replicate (n'-1) c))
       else
-        fmap (Ring.* c) . foldr (Map.unionWith (Ring.*)) mempty
+        fmap (Ring.* c)
+          . foldr
+              (Vec.zipWith (Ring.*))
+              (constVec (RowCount n) one)
           <$> sequence
-            [ evaluate ann arg (RowCount n, v) <&> fmap (Ring.^ intToInteger (e ^. #getExponent))
+            [ evaluate ann arg (RowCount n, v)
+                <&> fmap (Ring.^ intToInteger (e ^. #getExponent))
               | (v, e) <- Map.toList m
             ]
 
-instance HasEvaluate (RowCount, Polynomial) (Map (RowIndex 'Absolute) (Maybe Scalar)) where
+zeroVec :: RowCount -> Vector Scalar
+zeroVec n = constVec n zero
+
+constVec :: RowCount -> a -> Vector a
+constVec (RowCount n) = Vec.fromList . replicate n'
+  where
+    n' =
+      fromMaybe (die "Halo2.Circuit.evaluate: row count out of range of Int") $
+        integerToInt (scalarToInteger n)
+
+instance HasEvaluate (RowCount, Polynomial) (Vector (Maybe Scalar)) where
   evaluate ann arg (rc, Polynomial monos) =
-    fmap Just . foldr (Map.unionWith (Group.+)) mempty
+    fmap Just . foldr (Vec.zipWith (Group.+)) (zeroVec rc)
       <$> mapM (evaluate ann arg . (rc,)) (Map.toList monos)
 
-instance HasEvaluate (RowCount, Term) (Map (RowIndex 'Absolute) (Maybe Scalar)) where
+instance HasEvaluate (RowCount, Term) (Vector (Maybe Scalar)) where
   evaluate ann arg = uncurry $ \rc@(RowCount n) ->
     let rec = evaluate ann arg . (rc,)
      in \case
@@ -327,11 +349,11 @@ instance HasEvaluate (RowCount, Term) (Map (RowIndex 'Absolute) (Maybe Scalar)) 
             n' <- case integerToInt (scalarToInteger n) of
               Just n' -> pure n'
               Nothing -> Left (ErrorMessage ann "row count outside range of Int")
-            pure $ Map.fromList [(RowIndex x, Just i) | x <- [0 .. n' - 1]]
-          Plus x y -> Map.unionWith (liftA2 (Group.+)) <$> rec x <*> rec y
-          Times x y -> Map.unionWith (liftA2 (Ring.*)) <$> rec x <*> rec y
-          Max x y -> Map.unionWith (liftA2 max) <$> rec x <*> rec y
-          IndLess x y -> Map.unionWith (liftA2 lessIndicator) <$> rec x <*> rec y
+            pure $ Vec.fromList (replicate (n'-1) (Just i))
+          Plus x y -> Vec.zipWith (liftA2 (Group.+)) <$> rec x <*> rec y
+          Times x y -> Vec.zipWith (liftA2 (Ring.*)) <$> rec x <*> rec y
+          Max x y -> Vec.zipWith (liftA2 max) <$> rec x <*> rec y
+          IndLess x y -> Vec.zipWith (liftA2 lessIndicator) <$> rec x <*> rec y
           l@(Lookup is outCol) ->
             mapLeft
               ( \(ErrorMessage ann' msg) ->
@@ -342,16 +364,17 @@ instance HasEvaluate (RowCount, Term) (Map (RowIndex 'Absolute) (Maybe Scalar)) 
 -- Get the output corresponding to the given input expressions
 -- looked up in the given lookup table.
 performLookups ::
-  HasEvaluate (RowCount, a) (Map (RowIndex 'Absolute) (Maybe Scalar)) =>
+  HasEvaluate (RowCount, a) (Vector (Maybe Scalar)) =>
   ann ->
   RowCount ->
   Argument ->
   [(InputExpression a, LookupTableColumn)] ->
   LookupTableOutputColumn ->
-  Either (ErrorMessage ann) (Map (RowIndex 'Absolute) (Maybe Scalar))
+  Either (ErrorMessage ann) (Vector (Maybe Scalar))
 performLookups ann rc arg is outCol = do
   inputTable <-
-    fmap (fmap (fromMaybe (die "Halo2.Circuit.performLookups: input expression undefined")))
+    fmap (Map.fromList . zip (RowIndex <$> [0..]) . Vec.toList
+           . fmap (fromMaybe (die "Halo2.Circuit.performLookups: input expression undefined")))
       <$> mapM (evaluate ann arg . (rc,) . (^. #getInputExpression) . fst) is
   results <-
     getLookupResults
@@ -361,10 +384,10 @@ performLookups ann rc arg is outCol = do
       (getCellMap arg)
       (zip inputTable (snd <$> is))
   let allRows = getRowSet rc Nothing
-      results' =
-        fmap Just . Map.mapKeys (^. #rowIndex) $
-          Map.filterWithKey (\k _ -> k ^. #colIndex == outCol') results
-  pure $ results' <> Map.fromList ((,Nothing) <$> Set.toList allRows)
+  pure . Vec.fromList . Map.elems
+    . (<> Map.fromList ((,Nothing) <$> Set.toList allRows))
+    . fmap Just . Map.mapKeys (^. #rowIndex)
+    $  Map.filterWithKey (\k _ -> k ^. #colIndex == outCol') results
   where
     outCol' = outCol ^. #unLookupTableOutputColumn . #unLookupTableColumn
 
@@ -485,20 +508,20 @@ lessIndicator :: Scalar -> Scalar -> Scalar
 lessIndicator x y =
   if x < y then one else zero
 
-instance HasEvaluate (RowCount, AtomicLogicConstraint) (Map (RowIndex 'Absolute) (Maybe Bool)) where
+instance HasEvaluate (RowCount, AtomicLogicConstraint) (Vector (Maybe Bool)) where
   evaluate ann arg =
     uncurry $ \rc ->
       \case
         Equals x y ->
-          Map.intersectionWith (liftA2 (==))
+          Vec.zipWith (liftA2 (==))
             <$> evaluate ann arg (rc, x)
             <*> evaluate ann arg (rc, y)
         LessThan x y ->
-          Map.intersectionWith (liftA2 (<))
+          Vec.zipWith (liftA2 (<))
             <$> evaluate ann arg (rc, x)
             <*> evaluate ann arg (rc, y)
 
-instance HasEvaluate (RowCount, LogicConstraint) (Map (RowIndex 'Absolute) (Maybe Bool)) where
+instance HasEvaluate (RowCount, LogicConstraint) (Vector (Maybe Bool)) where
   evaluate ann arg =
     uncurry $ \rc@(RowCount n) ->
       let getN = case integerToInt (scalarToInteger n) of
@@ -508,23 +531,23 @@ instance HasEvaluate (RowCount, LogicConstraint) (Map (RowIndex 'Absolute) (Mayb
             Atom p -> evaluate ann arg (rc, p)
             Not p -> fmap (fmap not) <$> rec (rc, p)
             And p q ->
-              Map.intersectionWith (&&^)
+              Vec.zipWith (&&^)
                 <$> rec (rc, p)
                 <*> rec (rc, q)
             Or p q ->
-              Map.intersectionWith (||^)
+              Vec.zipWith (||^)
                 <$> rec (rc, p)
                 <*> rec (rc, q)
             Iff p q ->
-              Map.intersectionWith (liftA2 (==))
+              Vec.zipWith (liftA2 (==))
                 <$> rec (rc, p)
                 <*> rec (rc, q)
             Top -> do
               n' <- getN
-              pure (Map.fromList ((,Just True) . RowIndex <$> [0 .. n' - 1]))
+              pure (constVec rc (Just True))
             Bottom -> do
               n' <- getN
-              pure (Map.fromList ((,Just False) . RowIndex <$> [0 .. n' - 1]))
+              pure (constVec rc (Just False))
     where
       rec = evaluate ann arg
 
@@ -550,14 +573,11 @@ instance HasEvaluate (RowCount, LogicConstraints) () where
     forM_ cs
       ( \(lbl, c) -> do
           r <- evaluate ann arg (rc, c)
-          unless (r == (Map.fromList ((,Just True) <$> Set.toList allRows)))
+          unless (r == constVec rc (Just True))
             (Left
               (ErrorMessage ann
-                (pack (show lbl) <> ": not satisfied on the following rows: "
-                  <> pack (show (Map.toList (Map.filter (/= Just True) r))))))
+                (pack (show lbl) <> ": not satisfied on all the rows")))
       )
-    where
-      allRows = getRowSet rc Nothing
 
 instance HasEvaluate (RowCount, PolynomialConstraints) () where
   evaluate ann arg (rc, PolynomialConstraints polys degreeBound) =
@@ -572,28 +592,36 @@ instance HasEvaluate (RowCount, PolynomialConstraints) () where
           unless (all (== Just zero) r)
             (Left
               (ErrorMessage ann
-                (pack (show lbl) <> ": not satisfied on the following rows: "
-                  <> pack (show (Map.toList (Map.filter (/= Just zero) r)))
-                  <> " out of " <> pack (show (Map.size r)))))
+                (pack (show lbl) <> ": not satisfied on all the rows")))
       )
 
 instance
   ( HasColumnVectorToBools a,
-    HasEvaluate (RowCount, a) (Map (RowIndex 'Absolute) (Maybe Scalar))
+    HasEvaluate (RowCount, a) (Vector (Maybe Scalar))
   ) =>
   HasEvaluate (RowCount, LookupArgument a) ()
   where
   evaluate ann arg (rc, LookupArgument lbl gate tableMap) = do
-    gateVals <- columnVectorToBools gate <$> evaluate ann arg (rc, gate)
+    gateVals <-
+          Map.fromList . zip (RowIndex <$> [0..]) . Vec.toList
+        . columnVectorToBools gate
+      <$> evaluate ann arg (rc, gate)
     let rowSet = Map.keysSet (Map.filter id gateVals)
     inputTable <-
-      fmap (fmap (fromMaybe (die "Halo2.Circuit.evaluate @LookupArgument: input expression undefined")))
+        fmap (Map.fromList . zip (RowIndex <$> [0..]) . Vec.toList)
+      . fmap (fmap (fromMaybe (die "Halo2.Circuit.evaluate @LookupArgument: input expression undefined")))
         <$> mapM (evaluate ann arg . (rc,) . (^. #getInputExpression) . fst) tableMap
     let cellMap = getCellMap arg
         inputs = zip inputTable (snd <$> tableMap)
         tableCols = Set.fromList ((^. #unLookupTableColumn) . snd <$> tableMap)
         rows = Set.map (^. #rowIndex) (Map.keysSet cellMap)
-        lookupTbl = Set.filter (\r -> Map.lookup 131 r == Just (one + one)) $ Set.fromList (Map.elems (getCellMapRows rows (Map.filterWithKey (\k _ -> (k ^. #colIndex) `Set.member` tableCols) cellMap)))
+        lookupTbl =
+          Set.fromList
+            (Map.elems
+              (getCellMapRows rows
+                (Map.filterWithKey
+                  (\k _ -> (k ^. #colIndex) `Set.member` tableCols)
+                  cellMap)))
     results <-
       getLookupResults
         ann
