@@ -73,7 +73,7 @@ import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
 import OSL.Map (inverseMap)
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 import Safe (headMay)
-import Stark.Types.Scalar (Scalar, integerToScalar, one, scalarToInteger, toWord64, zero)
+import Stark.Types.Scalar (Scalar, integerToScalar, one, scalarToInteger, zero)
 
 class HasPolynomialVariables a where
   getPolynomialVariables :: a -> Set PolynomialVariable
@@ -531,7 +531,7 @@ instance HasEvaluate (RowCount, LogicConstraint) (Map (RowIndex 'Absolute) (Mayb
 instance HasEvaluate (Map ColumnIndex FixedBound) () where
   evaluate ann arg bs =
     if and
-        [ min (toWord64 x) (toWord64 (Group.negate x))
+        [ min (scalarToInteger x) (scalarToInteger (Group.negate x))
             < b ^. #unFixedBound
           | (ci, b) <- Map.toList bs,
             x <-

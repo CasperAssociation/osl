@@ -26,7 +26,7 @@ module Semicircuit.ToLogicCircuit
   )
 where
 
-import Cast (intToInteger, integerToInt, word64ToInteger)
+import Cast (intToInteger, integerToInt)
 import Control.Lens ((<&>), (^.))
 import Control.Monad (foldM, forM, replicateM)
 import Control.Monad.State (State, evalState, get, put)
@@ -848,7 +848,7 @@ sigma11TermToLogicConstraintTerm layout =
     IndLess x y -> rec x `LC.IndLess` rec y
     Max x y -> rec x `LC.Max` rec y
     Const x ->
-      if x < word64ToInteger order
+      if x < order
         then LC.Const (fromInteger x)
         else die $ "in termToPolynomial: constant term " <> pack (show x) <> " is greater than or equal to the field order " <> pack (show order) <> " (this is a compiler bug; should have been caught earlier)"
   where

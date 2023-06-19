@@ -7,7 +7,6 @@ module Halo2.ArithmetizationConfig
   )
 where
 
-import Cast (word64ToInteger)
 import Crypto.Number.Basic (numBits)
 import Halo2.Prelude
 import Halo2.Types.ArithmetizationConfig (ArithmetizationConfig (..))
@@ -25,13 +24,13 @@ getArithmetizationConfig bitsPerByte =
 
 getBytesPerWord :: BitsPerByte -> BytesPerWord
 getBytesPerWord (BitsPerByte bitsPerByte) =
-  case numBits (word64ToInteger order) `quotRem` bitsPerByte of
+  case numBits order `quotRem` bitsPerByte of
     (q, 0) -> BytesPerWord q
     (q, _) -> BytesPerWord (q + 1)
 
 getByteDecompositionSize :: ArithmetizationConfig -> FixedBound -> ByteDecompositionSize
 getByteDecompositionSize config (FixedBound b) =
-  case numBits (word64ToInteger b)
+  case numBits b
     `quotRem` (config ^. #bitsPerByte . #unBitsPerByte) of
     (q, 0) -> ByteDecompositionSize q
     (q, _) -> ByteDecompositionSize (q + 1)
