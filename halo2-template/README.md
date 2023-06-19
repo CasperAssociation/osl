@@ -10,8 +10,8 @@ To update the `Cargo.nix` and `flake.lock` files after changing `Cargo.toml`:
 
 ```
  $ nix develop
- [nix-develop-osl-output] cargo build
- [nix-develop-osl-output] exit
+ [nix-develop-osl-output:] cargo build
+ [nix-develop-osl-output:] exit
  $ nix run github:cargo2nix/cargo2nix
 ```
 

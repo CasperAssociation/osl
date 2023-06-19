@@ -2,6 +2,7 @@ use ff::{FromUniformBytes, PrimeField};
 use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
+  dev::MockProver,
   poly::Rotation,
   plonk::{Advice, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression, Selector},
 };
