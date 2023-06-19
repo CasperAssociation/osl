@@ -49,6 +49,7 @@ generateProject :: TargetDirectory -> ArithmeticCircuit -> IO ()
 generateProject td@(TargetDirectory targetDirectory) c = do
   createDirectoryIfMissing True (targetDirectory <> "/src")
   createLibFile td c
+  createMainFile td
   createLicenseFile td
   createNoticeFile td
   createGitignoreFile td
@@ -66,7 +67,7 @@ generateProject td@(TargetDirectory targetDirectory) c = do
         [ "LICENSE", "NOTICE", ".gitignore", "README.md",
           "rust-toolchain.toml", "Cargo.toml", "Cargo.nix",
           "Cargo.lock", "flake.nix", "flake.lock",
-          "src/lib.rs"
+          "src/lib.rs", "src/main.rs"
         ]
 
 createLicenseFile :: TargetDirectory -> IO ()
@@ -119,6 +120,11 @@ createFlakeLockFile =
   writeStaticFile "flake.lock"
     $(embedFile "./halo2-template/flake.lock")
 
+createMainFile :: TargetDirectory -> IO ()
+createMainFile =
+  writeStaticFile "src/main.rs"
+    $(embedFile "./halo2-template/src/main.rs")
+
 createLibFile :: TargetDirectory -> ArithmeticCircuit -> IO ()
 createLibFile targetDir c =
   case getLibSource c of
@@ -142,7 +148,8 @@ getLibSource c = do
         interludeB,
         BS.intercalate "\n"
           (("      " <>) . getEditSynthesizeSource c <$> edits),
-        postlude
+        postlude,
+        entryPoint
       ]
   where
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
@@ -226,6 +233,8 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
   }
 }
 |]
+
+    entryPoint = $(embedFile "./halo2-template/src/entry-point.rs")
 
 
 getEditConfigureSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
