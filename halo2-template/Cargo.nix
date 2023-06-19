@@ -4,7 +4,7 @@
 args@{
   release ? true,
   rootFeatures ? [
-    "halo2-example/default"
+    "osl_prover/default"
   ],
   rustPackages,
   buildRustPackages,
@@ -37,7 +37,7 @@ in
 {
   cargo2nixVersion = "0.11.0";
   workspace = {
-    halo2-example = rustPackages.unknown.halo2-example."0.1.0";
+    osl_prover = rustPackages.unknown.osl_prover."0.1.0";
   };
   "registry+https://github.com/rust-lang/crates.io-index".arrayref."0.3.6" = overridableMkRustCrate (profileName: rec {
     name = "arrayref";
@@ -492,21 +492,6 @@ in
     };
   });
   
-  "unknown".halo2-example."0.1.0" = overridableMkRustCrate (profileName: rec {
-    name = "halo2-example";
-    version = "0.1.0";
-    registry = "unknown";
-    src = fetchCrateLocal workspaceSrc;
-    dependencies = {
-      ff = rustPackages."registry+https://github.com/rust-lang/crates.io-index".ff."0.13.0" { inherit profileName; };
-      halo2_proofs = rustPackages."git+https://github.com/Polytopoi/halo2.git".halo2_proofs."0.3.0" { inherit profileName; };
-      pasta_curves = rustPackages."registry+https://github.com/rust-lang/crates.io-index".pasta_curves."0.5.0" { inherit profileName; };
-      rand_core = rustPackages."registry+https://github.com/rust-lang/crates.io-index".rand_core."0.6.4" { inherit profileName; };
-      tokio = rustPackages."registry+https://github.com/rust-lang/crates.io-index".tokio."1.28.2" { inherit profileName; };
-      warp = rustPackages."registry+https://github.com/rust-lang/crates.io-index".warp."0.3.5" { inherit profileName; };
-    };
-  });
-  
   "git+https://github.com/Polytopoi/halo2.git".halo2_proofs."0.3.0" = overridableMkRustCrate (profileName: rec {
     name = "halo2_proofs";
     version = "0.3.0";
@@ -869,6 +854,22 @@ in
       [ "race" ]
       [ "std" ]
     ];
+  });
+  
+  "unknown".osl_prover."0.1.0" = overridableMkRustCrate (profileName: rec {
+    name = "osl_prover";
+    version = "0.1.0";
+    registry = "unknown";
+    src = fetchCrateLocal workspaceSrc;
+    dependencies = {
+      ff = rustPackages."registry+https://github.com/rust-lang/crates.io-index".ff."0.13.0" { inherit profileName; };
+      halo2_proofs = rustPackages."git+https://github.com/Polytopoi/halo2.git".halo2_proofs."0.3.0" { inherit profileName; };
+      pasta_curves = rustPackages."registry+https://github.com/rust-lang/crates.io-index".pasta_curves."0.5.0" { inherit profileName; };
+      rand_core = rustPackages."registry+https://github.com/rust-lang/crates.io-index".rand_core."0.6.4" { inherit profileName; };
+      serde = rustPackages."registry+https://github.com/rust-lang/crates.io-index".serde."1.0.164" { inherit profileName; };
+      tokio = rustPackages."registry+https://github.com/rust-lang/crates.io-index".tokio."1.28.2" { inherit profileName; };
+      warp = rustPackages."registry+https://github.com/rust-lang/crates.io-index".warp."0.3.5" { inherit profileName; };
+    };
   });
   
   "registry+https://github.com/rust-lang/crates.io-index".parking_lot."0.12.1" = overridableMkRustCrate (profileName: rec {

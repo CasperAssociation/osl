@@ -307,18 +307,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "halo2-example"
-version = "0.1.0"
-dependencies = [
- "ff",
- "halo2_proofs",
- "pasta_curves",
- "rand_core",
- "tokio",
- "warp",
-]
-
-[[package]]
 name = "halo2_proofs"
 version = "0.3.0"
 source = "git+https://github.com/Polytopoi/halo2.git?rev=eb38ed04a1c99e6c8153b921aa18c62d332b38ed#eb38ed04a1c99e6c8153b921aa18c62d332b38ed"
@@ -569,6 +557,19 @@ name = "once_cell"
 version = "1.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
+
+[[package]]
+name = "osl_prover"
+version = "0.1.0"
+dependencies = [
+ "ff",
+ "halo2_proofs",
+ "pasta_curves",
+ "rand_core",
+ "serde",
+ "tokio",
+ "warp",
+]
 
 [[package]]
 name = "parking_lot"
