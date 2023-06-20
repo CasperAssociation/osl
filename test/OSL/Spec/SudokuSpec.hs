@@ -157,7 +157,7 @@ exampleSpec c = do
 
     it "a negative case" $
       evalTranslatedFormula9 8 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
-        `shouldBe` Left (ErrorMessage Nothing mempty)
+        `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(21810,Just 1)] out of 22762")
 
   describe "Sudoku spec's semantics are preserved in codegen stage 10" $ do
     it "a positive case" $
@@ -166,7 +166,7 @@ exampleSpec c = do
 
     it "a negative case" $
       evalTranslatedFormula10 8 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
-        `shouldBe` Left (ErrorMessage Nothing mempty)
+        `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(21810,Just 1)] out of 22762")
 
 
 exampleArgument :: ValidContext 'Global ann -> Argument

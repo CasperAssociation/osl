@@ -54,6 +54,7 @@ import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
 import Halo2.Types.EqualityConstraints (EqualityConstraints (EqualityConstraints))
 import Halo2.Types.EqualityConstraint (EqualityConstraint (EqualityConstraint))
+import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns (EqualityConstrainableColumns))
 import Halo2.Types.FixedColumn (FixedColumn (FixedColumn))
 import Halo2.Types.FixedValues (FixedValues (FixedValues))
 import Halo2.Types.InputExpression (InputExpression (InputExpression))
@@ -104,7 +105,7 @@ removeLookupGates c = do
   checkVariableRowOffsetsAreZero c
   pure $ Circuit
     ((c ^. #columnTypes) <> ColumnTypes (Map.singleton (dci ^. #unDummyRowIndicatorColumnIndex) Advice))
-    (c ^. #equalityConstrainableColumns)
+    (EqualityConstrainableColumns (Map.keysSet (c ^. #columnTypes . #getColumnTypes)))
     (restrictGateConstraintsToNonDummyRows dci (c ^. #gateConstraints))
     (removeLookupArgumentsGates dci (c ^. #lookupArguments))
     ((c ^. #rowCount) + 1)
@@ -162,31 +163,39 @@ removeLookupArgumentsGates ::
   LookupArguments Polynomial ->
   LookupArguments Polynomial
 removeLookupArgumentsGates dci =
-  LookupArguments . Set.map (removeLookupArgumentGates dci) . (^. #getLookupArguments)
+  LookupArguments
+    . Set.map (removeLookupArgumentGates dci)
+    . (^. #getLookupArguments)
 
 
 removeLookupArgumentGates ::
   DummyRowIndicatorColumnIndex ->
   LookupArgument Polynomial ->
   LookupArgument Polynomial
-removeLookupArgumentGates (DummyRowIndicatorColumnIndex dci) arg =
+removeLookupArgumentGates dci'@(DummyRowIndicatorColumnIndex dci) arg =
   LookupArgument
     (arg ^. #label)
     P.zero
-    ([(InputExpression (P.var' dci `P.times` (P.one `P.minus` (arg ^. #gate))),
+    ([(InputExpression ((d `P.plus` g) `P.minus` (d `P.times` g)),
        LookupTableColumn dci)] <>
-     (first (gateInputExpression (arg ^. #gate)) <$>
+     (first (gateInputExpression dci' (arg ^. #gate)) <$>
       (arg ^. #tableMap)))
+  where
+    -- d = 1 iff this is the dummy row
+    d = P.var' dci
+    -- g = 1 iff the gate is not satisfied
+    g = arg ^. #gate
 
 
 gateInputExpression ::
+  DummyRowIndicatorColumnIndex ->
   Polynomial ->
   InputExpression Polynomial ->
   InputExpression Polynomial
-gateInputExpression p =
+gateInputExpression (DummyRowIndicatorColumnIndex dci) p =
   InputExpression
-    . (P.one `P.minus`)
-    . (P.times p)
+    . (P.times (P.one `P.minus` P.var' dci))
+    . (P.times (P.one `P.minus` p))
     . (^. #getInputExpression)
 
 
@@ -215,7 +224,7 @@ dummyRowAndColFixedValues dri dci c =
     r' =
       maybe
         (die "dummyRowFixedValues: row count is out of range of scalar (this is a compiler bug")
-        (RowIndex . (subtract 1))
+        RowIndex
         (integerToInt (scalarToInteger (c ^. #rowCount . #getRowCount)))
 
 
@@ -262,5 +271,8 @@ getDummyColWitness c =
         let v = if ri == dri then one else zero
     ]
   where
-    dri = getDummyRowIndex c ^. #unDummyRowIndex
-    ci = getDummyRowIndicatorColumnIndex c ^. #unDummyRowIndicatorColumnIndex
+    dri = getDummyRowIndex c
+            ^. #unDummyRowIndex
+
+    ci = getDummyRowIndicatorColumnIndex c
+           ^. #unDummyRowIndicatorColumnIndex

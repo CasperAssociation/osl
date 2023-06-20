@@ -660,8 +660,15 @@ instance HasEvaluate ColumnTypes () where
 instance HasEvaluate (FixedValues (RowIndex Absolute)) () where
   evaluate ann arg fvs =
     unless
-      (fixedValuesToCellMap fvs `Map.isSubmapOf` (arg ^. #witness . #unWitness))
-      (Left (ErrorMessage ann "correct fixed values need to be present in witness"))
+      (m `Map.isSubmapOf` w)
+      (Left . ErrorMessage ann
+        $ "correct fixed values need to be present in witness; missing: " <>
+           pack (show (take 1 (Map.toList (Map.differenceWith (\x y -> if x == y then Nothing else Just x) m w)))) <>
+           " and instead seeing: " <>
+           pack (show (take 1 (Map.toList (Map.differenceWith (\x y -> if x == y then Nothing else Just y) m w)))))
+    where
+      m = fixedValuesToCellMap fvs
+      w = arg ^. #witness . #unWitness
 
 fixedValuesToCellMap :: FixedValues (RowIndex 'Absolute) -> Map CellReference Scalar
 fixedValuesToCellMap (FixedValues m) =
@@ -674,7 +681,7 @@ fixedValuesToCellMap (FixedValues m) =
 instance HasEvaluate (EqualityConstrainableColumns, EqualityConstraints) () where
   evaluate ann _ (eqcs, eqs) =
     unless (equalityConstraintsMatchEqualityConstrainableColumns eqcs eqs)
-      (Left (ErrorMessage ann "equality constraints are not satisfied"))
+      (Left (ErrorMessage ann "equality constraints do not match equality constrainable columns"))
 
 equalityConstraintsMatchEqualityConstrainableColumns ::
   EqualityConstrainableColumns ->
