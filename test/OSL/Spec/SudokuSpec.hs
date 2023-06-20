@@ -142,7 +142,7 @@ exampleSpec c = do
       `shouldBe` Right ()
 
     evalTranslatedFormula8 8 c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
-      `shouldBe` Left (ErrorMessage Nothing mempty)
+      `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(21810,Just 1)] out of 22761")
 
   it "Sudoku spec's semantics are preserved in codegen stage 9" $ do
     evalTranslatedFormula9 8 c "problemIsSolvable" argumentForm (exampleArgument c)

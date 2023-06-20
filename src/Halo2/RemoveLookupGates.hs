@@ -185,6 +185,7 @@ gateInputExpression ::
   InputExpression Polynomial
 gateInputExpression p =
   InputExpression
+    . (P.one `P.minus`)
     . (P.times p)
     . (^. #getInputExpression)
 

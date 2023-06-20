@@ -206,7 +206,8 @@ gateStepTypeLookupArgument ::
 gateStepTypeLookupArgument t sIds arg =
   LookupArgument
     (arg ^. #label)
-    ((P.one `P.minus` (stepIndicatorGate t)) `P.times` (P.one `P.minus` stepTypesGate t sIds))
+    (P.one `P.minus` (stepIndicatorGate t
+      `P.times` stepTypesGate t sIds))
     (arg ^. #tableMap)
 
 stepIndicatorGate ::
@@ -234,8 +235,7 @@ stepTypesGate ::
   Set StepTypeId ->
   Polynomial
 stepTypesGate t sIds =
-  P.one
-    `P.minus` foldl' P.plus P.zero [stepTypeGate t sId | sId <- Set.toList sIds]
+  foldl' P.plus P.zero [stepTypeGate t sId | sId <- Set.toList sIds]
 
 traceTypeEqualityConstraints ::
   TraceType ->
