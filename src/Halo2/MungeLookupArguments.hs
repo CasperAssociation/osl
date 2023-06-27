@@ -7,6 +7,8 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+
 module Halo2.MungeLookupArguments
   ( mungeLookupArguments,
     mungeArgument,
@@ -28,10 +30,12 @@ import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
+import Halo2.Types.EqualityConstraint (EqualityConstraint (EqualityConstraint))
 import Halo2.Types.LookupArgument (LookupArgument (LookupArgument))
 import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
+import Halo2.Types.RowCount (RowCount)
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 
 newtype InstanceToAdviceMapping =
@@ -69,6 +73,30 @@ doReplacementOnCircuit m c =
         (doReplacementOnLookupArgument m)
         (c ^. #lookupArguments . #getLookupArguments))
     $ c
+
+addEqualityConstraints ::
+  InstanceToAdviceMapping ->
+  ArithmeticCircuit ->
+  ArithmeticCircuit
+addEqualityConstraints (InstanceToAdviceMapping m) c =
+  ((#equalityConstrainableColumns . #getEqualityConstrainableColumns)
+    %~ Set.union (Map.keysSet m `Set.union` Set.fromList (Map.elems m)))
+  . ((#equalityConstraints . #getEqualityConstraints)
+      %~ (<> (uncurry (getEqualityConstraint (c ^. #rowCount)) `concatMap` Map.toList m)))
+  $ c
+
+getEqualityConstraint ::
+  RowCount ->
+  ColumnIndex ->
+  ColumnIndex ->
+  [EqualityConstraint]
+getEqualityConstraint rc ci cj =
+  [ EqualityConstraint $ Set.fromList
+      [ CellReference ci ri,
+        CellReference cj ri
+      ]
+    | ri <- Set.toList $ getRowSet rc Nothing
+  ]
 
 insertNewAdviceInColumnTypes ::
   InstanceToAdviceMapping ->
