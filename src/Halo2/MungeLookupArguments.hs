@@ -7,8 +7,6 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
-
 module Halo2.MungeLookupArguments
   ( mungeLookupArguments,
     mungeArgument,
@@ -51,7 +49,9 @@ mungeLookupArguments =
 replaceInstanceWithAdvice :: ArithmeticCircuit -> ArithmeticCircuit
 replaceInstanceWithAdvice c =
   let m = getInstanceToAdviceMapping c
-  in doReplacementOnCircuit m (insertNewAdviceInColumnTypes m c)
+  in doReplacementOnCircuit m
+       (addEqualityConstraints m
+         (insertNewAdviceInColumnTypes m c))
 
 getInstanceToAdviceMapping ::
   ArithmeticCircuit ->
@@ -165,7 +165,7 @@ getFirstUnusedColumnIndex ::
   ColumnIndex
 getFirstUnusedColumnIndex =
   fromMaybe 0
-    . fmap fst
+    . fmap ((+1) . fst)
     . Map.lookupMax
     . (^. #columnTypes . #getColumnTypes)
 

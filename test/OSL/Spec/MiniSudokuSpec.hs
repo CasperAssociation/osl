@@ -167,7 +167,7 @@ exampleSpec c = do
 
     it "a negative case" $
       evalTranslatedFormula10 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
-        `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(21810,Just 1)] out of 22762")
+        `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(104,Just 1)] out of 1531")
 
 
 exampleArgument :: ValidContext 'Global ann -> Argument
