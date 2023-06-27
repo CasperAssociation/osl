@@ -7,6 +7,7 @@ module OSL.Spec.MiniSudokuSpec (spec) where
 
 import Control.Lens ((^.))
 import Control.Monad (forM_)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.List (find)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -18,7 +19,7 @@ import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
 import OSL.Spec.Sudoku.Types (Cell (Cell), Col (Col), Digit (Digit), Problem (Problem, unProblem), Row (Row), Solution (Solution, unSolution), SudokuWitness (SudokuWitness))
-import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10)
+import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10, evalTranslatedFormula11)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
@@ -168,6 +169,16 @@ exampleSpec c = do
     it "a negative case" $
       evalTranslatedFormula10 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
         `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(104,Just 1)] out of 1531")
+
+  describe "Sudoku spec's semantics are preserved in codegen stage 11" $ do
+    it "a positive case" $ do
+      result <- runExceptT $ evalTranslatedFormula11 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleArgument c)
+      result `shouldBe` Right ()
+
+    it "a negative case" $ do
+      result <- liftIO . runExceptT $ evalTranslatedFormula11 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
+      result `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(104,Just 1)] out of 1531")
+
 
 
 exampleArgument :: ValidContext 'Global ann -> Argument

@@ -23,6 +23,7 @@ module Halo2.Circuit
     HasEvaluate (evaluate),
     lessIndicator,
     rowsToCellMap,
+    getCellMapColumns,
     getCellMapRows,
     getCellMap,
     getRowSet,
@@ -455,15 +456,15 @@ getCellMapRows rows cellMap =
         ri `Set.member` rows
     ]
 
--- getCellMapColumns ::
---   Map CellReference Scalar ->
---   Map ColumnIndex (Map (RowIndex 'Absolute) Scalar)
--- getCellMapColumns cellMap =
---   Map.unionsWith
---     (<>)
---     [ Map.singleton ci (Map.singleton ri x)
---       | (CellReference ci ri, x) <- Map.toList cellMap
---     ]
+getCellMapColumns ::
+  Map CellReference Scalar ->
+  Map ColumnIndex (Map (RowIndex 'Absolute) Scalar)
+getCellMapColumns cellMap =
+  Map.unionsWith
+    (<>)
+    [ Map.singleton ci (Map.singleton ri x)
+      | (CellReference ci ri, x) <- Map.toList cellMap
+    ]
 
 columnListToCellMap ::
   [(Map (RowIndex 'Absolute) Scalar, LookupTableColumn)] ->

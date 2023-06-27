@@ -1,7 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -14,19 +16,25 @@ module Halo2.ProverClient
   ) where
 
 
+import Cast (integerToWord8)
 import Control.Concurrent.Async.Lifted (async)
+import Control.Lens ((^.))
 import Control.Monad (void, when)
 import Control.Monad.Error.Class (MonadError, throwError)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Aeson (ToJSON, FromJSON)
+import Data.List (unfoldr)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (Text, pack)
 import Data.Word (Word8)
-import Die (die)
 import GHC.Generics (Generic)
+import Halo2.Circuit (getCellMapColumns)
 import Halo2.Codegen (generateProject)
-import Halo2.Types.Argument (Argument)
+import Halo2.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
+import Halo2.Types.CellReference (CellReference)
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
@@ -93,8 +101,8 @@ type ProverApi = "mock_prove" :> ReqBody '[JSON] EncodedArgument :> Post '[Plain
 
 data EncodedArgument =
   EncodedArgument
-    { instance_data :: [(ColumnIndex, [[Word8]])],
-      advice_data :: [(ColumnIndex, [[Word8]])]
+    { instance_data :: [(ColumnIndex, [[[Word8]]])],
+      advice_data :: [(ColumnIndex, [[[Word8]]])]
     }
   deriving (Eq, Ord, Generic)
 
@@ -102,12 +110,32 @@ instance ToJSON EncodedArgument
 instance FromJSON EncodedArgument
 
 
+-- Turn a scalar into a little-endian byte string and group into groups of eight.
 encodeScalar :: Scalar -> [[Word8]]
-encodeScalar = todo
+encodeScalar =
+  unfoldr (\xs -> if null xs then Nothing else pure (take 8 xs, drop 8 xs))
+    . encodeScalarBytesLE
+
+
+-- Turn a scalar into a little-endian byte string.
+encodeScalarBytesLE :: Scalar -> [Word8]
+encodeScalarBytesLE =
+  take 64
+    . unfoldr
+      (\x -> let (a, b) = x `divMod` 8
+             in (,a) <$> integerToWord8 b)
+    . (^. #unScalar)
+
+
+encodeArgumentData :: Map CellReference Scalar -> [(ColumnIndex, [[[Word8]]])]
+encodeArgumentData = Map.toList . fmap (fmap encodeScalar . Map.elems) . getCellMapColumns
 
 
 encodeArgument :: Argument -> EncodedArgument
-encodeArgument = todo encodeScalar
+encodeArgument (Argument (Statement s) (Witness w)) =
+  EncodedArgument
+    (encodeArgumentData s)
+    (encodeArgumentData w)
 
 
 mockProverClient :: EncodedArgument -> ClientM ()
@@ -128,7 +156,3 @@ callMockProver env arg = do
   case res of
     Left err -> throwError (ErrorMessage () ("mock prover returned error: " <> pack (show err)))
     Right _ -> pure ()
-
-
-todo :: a
-todo = die "todo"

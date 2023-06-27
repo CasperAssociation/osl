@@ -8,6 +8,8 @@ pub async fn run_server() {
   let server = warp::path!("mock_prove")
       .and(warp::post())
       .and(warp::body::json())
+      // The reason for letting F = [[u8; 8]; 8] instead of F = [u8; 64] is so that
+      // serde traits can be derived.
       .map(|req: ProverInputs<[[u8; 8]; 8]>| {
           let mut instance_data: Vec<Vec<Fp>> = Vec::new();
           let mut advice_data: HashMap<ColumnIndex, Vec<Fp>> = HashMap::new();

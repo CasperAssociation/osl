@@ -12,14 +12,17 @@ module OSL.TranslatedEvaluation
     evalTranslatedFormula8,
     evalTranslatedFormula9,
     evalTranslatedFormula10,
+    evalTranslatedFormula11,
   )
 where
 
 import Control.Lens ((^.))
+import Control.Monad.Trans.Except (ExceptT, except, withExceptT)
 import Data.Either.Extra (mapLeft)
 import Halo2.Circuit (HasEvaluate (evaluate))
 import qualified Halo2.Types.Argument as C
 import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
+import Halo2.ProverClient (mockProve)
 import Halo2.RemoveLookupGates (removeLookupGates, removeLookupGatesArgumentConversion)
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.Circuit (LogicCircuit)
@@ -438,3 +441,50 @@ evalTranslatedFormula10 rowCount bitsPerByte c name argumentForm argument = do
         ErrorMessage Nothing ("evaluate: " <> msg)
     )
     (Halo2.Circuit.evaluate () arg'' ac'')
+
+-- Eleventh codegen pass: Rust 
+evalTranslatedFormula11 ::
+  Show ann =>
+  RowCount ->
+  BitsPerByte ->
+  ValidContext t ann ->
+  Name ->
+  ArgumentForm ->
+  Argument ->
+  ExceptT (ErrorMessage (Maybe ann)) IO ()
+evalTranslatedFormula11 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- except $ toLogicCircuit rowCount c name argumentForm argument
+  let tt = logicCircuitToTraceType bitsPerByte logic
+      lcM = getMapping bitsPerByte logic
+      ac = traceTypeToArithmeticCircuit tt lcM
+  ac' <- except $
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("removeLookupGates: " <> msg)
+      )
+      (removeLookupGates ac)
+  let ac'' = mungeLookupArguments ac'
+  t <- except $
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("argumentToTrace: " <> msg)
+      )
+      (argumentToTrace Nothing bitsPerByte logic lcArg)
+  arg <- except $
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("traceToArgument: " <> msg)
+      )
+      (traceToArgument Nothing tt lcM t)
+  let arg' = removeLookupGatesArgumentConversion ac arg
+  arg'' <- except $
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("mungeArgument: " <> msg)
+      )
+      (mungeArgument ac' arg')
+  withExceptT
+    ( \(ErrorMessage () msg) ->
+        ErrorMessage Nothing ("mockProve: " <> msg)
+    )
+    (mockProve ac'' arg'' "./mock-prover")

@@ -5,6 +5,7 @@ module Cast
     word64ToInteger,
     integerToInt,
     integerToWord64,
+    integerToWord8,
     integerToRatio,
     word8ToInteger,
     word64ToRatio,
@@ -27,6 +28,9 @@ integerToInt = toIntegralSized
 
 integerToWord64 :: Integer -> Maybe Word64
 integerToWord64 = toIntegralSized
+
+integerToWord8 :: Integer -> Maybe Word8
+integerToWord8 = toIntegralSized
 
 integerToRatio :: Integer -> Rational
 integerToRatio = toRational
