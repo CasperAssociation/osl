@@ -334,7 +334,7 @@ getMonoSource pp c
 
 getCoefficientSource :: Coefficient -> ByteString
 getCoefficientSource c =
-  "Expression::Constant(PrimeField::from_u128(" <> f c <> "))"
+  "Expression::Constant(PrimeField::from_str_vartime(\"" <> f c <> "\").unwrap())"
 
 getPowerProductSource :: PowerProduct -> ByteString
 getPowerProductSource pp =
