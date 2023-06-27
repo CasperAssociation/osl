@@ -223,6 +223,7 @@ test-suite spec
   other-modules:
     OSL.Spec.Gen
     OSL.Spec.FromHaskellSpec
+    OSL.Spec.MiniSudokuSpec
     OSL.Spec.OSLSpec
     OSL.Spec.SimplifyTypeSpec
     OSL.Spec.Sudoku.Types

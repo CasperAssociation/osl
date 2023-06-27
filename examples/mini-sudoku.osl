@@ -1,0 +1,24 @@
+-- Defines the statement that a given Sudoku problem has a solution.
+
+data Digit ≅ Fin(3).
+data Row ≅ Fin(3).
+data Col ≅ Fin(3).
+data Cell ≅ Row × Col.
+data Problem ≅ Cell →^9 Maybe(Digit).
+data Solution ≅ Cell →^9 Digit.
+
+def solutionIsWellFormed : Solution → Prop
+  := λs : Solution
+  ⇨ let f : Cell →^9 Digit := from(Solution)(s);
+     (∀r : Row, ∀v : Digit, ∃c : Col, f(to(Cell)((r,c))) = v)
+   ∧ (∀c : Col, ∀v : Digit, ∃r : Row, f(to(Cell)((r,c))) = v).
+
+def solutionMatchesProblem : Problem → Solution → Prop
+  := λp : Problem ⇨ λs : Solution
+  ⇨ let f : Cell →^9 Maybe(Digit) := from(Problem)(p);
+    let g : Cell →^9 Digit := from(Solution)(s);
+    ∀c : Cell, ((f(c) = nothing) ∨ (f(c) = just(g(c)))).
+
+def problemIsSolvable : Problem → Prop
+  := λp : Problem ⇨ ∃s : Solution,
+     solutionMatchesProblem(p, s) ∧ solutionIsWellFormed(s).

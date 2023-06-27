@@ -23,7 +23,7 @@ import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
 import Halo2.RemoveLookupGates (removeLookupGates, removeLookupGatesArgumentConversion)
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.Circuit (LogicCircuit)
-import Halo2.Types.RowCount (RowCount (RowCount))
+import Halo2.Types.RowCount (RowCount)
 import OSL.Argument (toSigma11Argument)
 import qualified OSL.Sigma11 as S11
 import OSL.Term (dropTermAnnotations)
@@ -229,12 +229,13 @@ evalTranslatedFormula5 c name argumentForm argument = do
 
 toLogicCircuit ::
   Show ann =>
+  RowCount ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) (LogicCircuit, C.Argument)
-toLogicCircuit c name argumentForm argument = do
+toLogicCircuit rowCount c name argumentForm argument = do
   (def, translated, _aux) <- translateToFormulaSimple c name
   let (translated', _mapping) = deBruijnToGensyms translated
   (qs, qff) <-
@@ -252,7 +253,6 @@ toLogicCircuit c name argumentForm argument = do
       (\(ErrorMessage _ msg) -> ErrorMessage Nothing ("toPNFFormula: " <> msg))
       (toPNFFormula () translated''')
   let semi = toSemicircuit pnff
-      rowCount = RowCount 81 -- TODO: calculate or pass this in
       (logic, layout) = semicircuitToLogicCircuit rowCount semi
   s11arg <-
     mapLeft
@@ -282,13 +282,14 @@ toLogicCircuit c name argumentForm argument = do
 -- Sixth codegen pass: Semicircuit.Sigma11 -> LogicCircuit
 evalTranslatedFormula6 ::
   Show ann =>
+  RowCount ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) ()
-evalTranslatedFormula6 c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+evalTranslatedFormula6 rowCount c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   mapLeft
     ( \(ErrorMessage () msg) ->
         ErrorMessage
@@ -300,14 +301,15 @@ evalTranslatedFormula6 c name argumentForm argument = do
 -- Seventh codegen pass: LogicCircuit -> TraceType
 evalTranslatedFormula7 ::
   Show ann =>
+  RowCount ->
   BitsPerByte ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) ()
-evalTranslatedFormula7 bitsPerByte c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+evalTranslatedFormula7 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
   t <-
     mapLeft
@@ -320,14 +322,15 @@ evalTranslatedFormula7 bitsPerByte c name argumentForm argument = do
 -- Eighth codegen pass: TraceType -> ArithmeticCircuit
 evalTranslatedFormula8 ::
   Show ann =>
+  RowCount ->
   BitsPerByte ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) ()
-evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+evalTranslatedFormula8 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
       lcM = getMapping bitsPerByte logic
       ac = traceTypeToArithmeticCircuit tt lcM
@@ -352,14 +355,15 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
 -- Ninth codegen pass: ArithmeticCircuit -> ArithmeticCircuit (remove lookup gates)
 evalTranslatedFormula9 ::
   Show ann =>
+  RowCount ->
   BitsPerByte ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) ()
-evalTranslatedFormula9 bitsPerByte c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+evalTranslatedFormula9 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
       lcM = getMapping bitsPerByte logic
       ac = traceTypeToArithmeticCircuit tt lcM
@@ -391,14 +395,15 @@ evalTranslatedFormula9 bitsPerByte c name argumentForm argument = do
 -- Tenth codegen pass: ArithmeticCircuit -> ArithmeticCircuit (munge lookup arguments)
 evalTranslatedFormula10 ::
   Show ann =>
+  RowCount ->
   BitsPerByte ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) ()
-evalTranslatedFormula10 bitsPerByte c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+evalTranslatedFormula10 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
       lcM = getMapping bitsPerByte logic
       ac = traceTypeToArithmeticCircuit tt lcM
