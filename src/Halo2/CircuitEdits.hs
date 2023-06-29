@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Halo2.CircuitEdits
-  ( getCircuitEdits
+  ( getCircuitEdits, getEqualityConstraintsEdits
   ) where
 
 import Control.Arrow (second)
@@ -11,8 +11,9 @@ import Control.Lens ((^.))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, AddLookupTable))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddEqualityConstraint, AddFixedColumn, AddGate, {- AddLookupArgument, -} AddLookupTable))
 import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
+import Halo2.Types.ColumnType (ColumnType (Fixed))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
 import Halo2.Types.EqualityConstraints (EqualityConstraints)
 import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns (EqualityConstrainableColumns))
@@ -36,10 +37,11 @@ getCircuitEdits c =
             (Set.map
               (fmap snd . (^. #tableMap))
               (c ^. #lookupArguments . #getLookupArguments))),
-      pure $ AddLookupArgument <$>
-        Set.toList (c ^. #lookupArguments . #getLookupArguments),
-      pure $ getEqualityConstraintsEdits (c ^. #equalityConstraints),
-      pure $ getFixedColumnsEdits (c ^. #fixedValues)
+      -- TODO: re-enable
+      -- pure $ AddLookupArgument <$>
+      --   Set.toList (c ^. #lookupArguments . #getLookupArguments),
+      -- pure $ getEqualityConstraintsEdits (c ^. #equalityConstraints),
+      pure $ getFixedColumnsEdits (c ^. #columnTypes) (c ^. #fixedValues)
     ]
 
 getColumnTypeEdits :: ColumnTypes -> Either (ErrorMessage ()) [CircuitEdit]
@@ -63,5 +65,11 @@ getGateConstraintEdits (PolynomialConstraints cs _degreeBound) =
 getEqualityConstraintsEdits :: EqualityConstraints -> [CircuitEdit]
 getEqualityConstraintsEdits = fmap (AddEqualityConstraint . (^. #getEqualityConstraint)) . (^. #getEqualityConstraints)
 
-getFixedColumnsEdits :: FixedValues (RowIndex Absolute) -> [CircuitEdit]
-getFixedColumnsEdits = fmap (uncurry AddFixedColumn . second (^. #unFixedColumn)) . Map.toList . (^. #getFixedValues)
+getFixedColumnsEdits :: ColumnTypes -> FixedValues (RowIndex Absolute) -> [CircuitEdit]
+getFixedColumnsEdits cts =
+  fmap (uncurry AddFixedColumn
+    . second (^. #unFixedColumn))
+    . Map.toList
+    -- TODO: remove the Map.intersection; there should be no fixed values for non-fixed cols
+    . (`Map.intersection` Map.filter (== Fixed) (cts ^. #getColumnTypes) )
+    . (^. #getFixedValues)

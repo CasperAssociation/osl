@@ -220,7 +220,7 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
         }
       }
       for (ci, xs) in &fixed_values {
-        let col = config.fixed_columns.get(ci).unwrap();
+        let col = config.fixed_columns.get(ci).expect(format!("Could not find column: {}", ci).as_str());
         for (ri, x) in xs.iter().enumerate() {
           region
             .assign_fixed(|| "", *col, ri, || Value::known(Assigned::from(x)))

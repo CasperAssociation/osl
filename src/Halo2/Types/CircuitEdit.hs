@@ -24,4 +24,4 @@ data CircuitEdit =
   | AddLookupArgument (LookupArgument Polynomial)
   | AddEqualityConstraint (Set CellReference)
   | AddFixedColumn ColumnIndex (Map (RowIndex Absolute) Scalar)
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)

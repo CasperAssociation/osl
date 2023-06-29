@@ -65,7 +65,7 @@ mockProve ::
 mockProve c arg target = do
   buildProver c target
   void . async $ runProver target
-  liftIO $ threadDelay 1000000
+  liftIO $ threadDelay 5000000
   mgr <- liftIO $ newManager defaultManagerSettings
   callMockProver (mkClientEnv mgr baseUrl) arg
   where

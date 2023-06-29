@@ -14,8 +14,9 @@ use str;
 use serde::{Serialize, Deserialize};
 use warp::Filter;
 use pasta_curves::Fp;
+use derive_more::Display;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Display)]
 pub struct ColumnIndex {
   index: u64
 }
