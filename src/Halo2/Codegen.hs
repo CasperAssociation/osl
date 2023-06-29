@@ -206,17 +206,22 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
       }
       for hm in advice_data.into_iter() {
         for (ci, xs) in hm.iter() {
-          for (ri, x) in xs.iter().enumerate() {
-            let col = config.advice_columns.get(ci).unwrap();
-            region
-              .assign_advice(|| "", *col, ri, || Value::known(Assigned::from(x)))
-              .unwrap();
-          }
+          let col = config.advice_columns.get(ci);
+          match col {
+            Some(col) => {
+              for (ri, x) in xs.iter().enumerate() {
+                region
+                  .assign_advice(|| "", *col, ri, || Value::known(Assigned::from(x)))
+                  .unwrap();
+              }
+            },
+            None => () // this must be a fixed column
+          };
         }
       }
       for (ci, xs) in &fixed_values {
+        let col = config.fixed_columns.get(ci).unwrap();
         for (ri, x) in xs.iter().enumerate() {
-          let col = config.fixed_columns.get(ci).unwrap();
           region
             .assign_fixed(|| "", *col, ri, || Value::known(Assigned::from(x)))
             .unwrap();
