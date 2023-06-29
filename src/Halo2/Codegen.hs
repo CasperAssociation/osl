@@ -5,6 +5,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+{-# OPTIONS_GHC -Wno-unused-imports #-} -- TODO: remove
+
 module Halo2.Codegen
   ( generateProject,
     TargetDirectory (TargetDirectory)
@@ -361,19 +363,19 @@ getLookupTableColumnsSource cs =
       <$> cs
 
 getAddEqualityConstraintSource :: Set.Set CellReference -> ByteString
-getAddEqualityConstraintSource cs =
-  "equality_constraints.push(vec!["
-    <> BS.intercalate ", "
-         ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
-           "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
-             <> ", column: (config.advice_columns.get(&ColumnIndex { index: "
-             <> encodeUtf8 (pack (show ci)) <> " })"
-             <> ".map_or_else(|| config.instance_columns.get(&ColumnIndex { index: "
-             <> encodeUtf8 (pack (show ci)) <> " }).map(|x| (<Column<Instance> as Into<Column<Any>>>::into(*x))), |x| Some(<Column<Advice> as Into<Column<Any>>>::into(*x)))"
-             <> ".or_else(|| Some((*config.fixed_columns.get(&ColumnIndex { index: "
-             <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into()))).unwrap() }")
-           <$> Set.toList cs)
-    <> "]);"
+getAddEqualityConstraintSource _cs = mempty -- TODO
+--   "equality_constraints.push(vec!["
+--     <> BS.intercalate ", "
+--          ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
+--            "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
+--              <> ", column: (config.advice_columns.get(&ColumnIndex { index: "
+--              <> encodeUtf8 (pack (show ci)) <> " })"
+--              <> ".map_or_else(|| config.instance_columns.get(&ColumnIndex { index: "
+--              <> encodeUtf8 (pack (show ci)) <> " }).map(|x| (<Column<Instance> as Into<Column<Any>>>::into(*x))), |x| Some(<Column<Advice> as Into<Column<Any>>>::into(*x)))"
+--              <> ".or_else(|| Some((*config.fixed_columns.get(&ColumnIndex { index: "
+--              <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into()))).unwrap() }")
+--            <$> Set.toList cs)
+--     <> "]);"
 
 
 -- NOTE: this assumes that the row indices are contiguous starting at zero,
