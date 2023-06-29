@@ -13,8 +13,7 @@ pub async fn run_server() {
       .map(|req: ProverInputs<String, [[u8; 8]; 8]>| {
           let mut instance_data: Vec<Vec<Fp>> = Vec::new();
           let mut advice_data: HashMap<ColumnIndex, Vec<Fp>> = HashMap::new();
-          let mut instance_cols: Vec<&String> =
-              req.instance_data.keys().collect();
+          let mut instance_cols: Vec<&String> = req.instance_data.keys().collect();
           // TODO: optimize this sorting by pre-parsing the strings
           instance_cols.sort_by(|a, b| str::parse::<u64>(a).unwrap().cmp(&str::parse::<u64>(b).unwrap()));
           for i in instance_cols.iter() {
@@ -50,7 +49,8 @@ pub async fn run_server() {
           let circuit = MyCircuit { advice_data: Some(advice_data) };
           let prover =
               MockProver::run(
-                  ROW_COUNT.try_into().unwrap(),
+                  // TODO: more precise row count
+                  TryInto::<u64>::try_into(ROW_COUNT).unwrap().ilog2()+1,
                   &circuit,
                   instance_data
               ).unwrap();
