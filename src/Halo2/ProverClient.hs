@@ -17,6 +17,7 @@ module Halo2.ProverClient
 
 
 import Cast (integerToWord8)
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async.Lifted (async)
 import Control.Lens ((^.))
 import Control.Monad (void, when)
@@ -64,10 +65,11 @@ mockProve ::
 mockProve c arg target = do
   buildProver c target
   void . async $ runProver target
+  liftIO $ threadDelay 1000000
   mgr <- liftIO $ newManager defaultManagerSettings
   callMockProver (mkClientEnv mgr baseUrl) arg
   where
-    baseUrl = BaseUrl Http "127.0.0.1" 1727 "/"
+    baseUrl = BaseUrl Http "127.0.0.1" 1727 ""
 
 
 -- Generate and build the Halo2 prover.
@@ -101,8 +103,8 @@ type ProverApi = "mock_prove" :> ReqBody '[JSON] EncodedArgument :> Post '[Plain
 
 data EncodedArgument =
   EncodedArgument
-    { instance_data :: [(ColumnIndex, [[[Word8]]])],
-      advice_data :: [(ColumnIndex, [[[Word8]]])]
+    { instance_data :: Map ColumnIndex [[[Word8]]],
+      advice_data :: Map ColumnIndex [[[Word8]]]
     }
   deriving (Eq, Ord, Generic)
 
@@ -127,8 +129,8 @@ encodeScalarBytesLE =
     . (^. #unScalar)
 
 
-encodeArgumentData :: Map CellReference Scalar -> [(ColumnIndex, [[[Word8]]])]
-encodeArgumentData = Map.toList . fmap (fmap encodeScalar . Map.elems) . getCellMapColumns
+encodeArgumentData :: Map CellReference Scalar -> Map ColumnIndex [[[Word8]]]
+encodeArgumentData = fmap (fmap encodeScalar . Map.elems) . getCellMapColumns
 
 
 encodeArgument :: Argument -> EncodedArgument

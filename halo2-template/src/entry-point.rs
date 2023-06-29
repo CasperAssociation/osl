@@ -1,7 +1,7 @@
 #[derive(Serialize, Deserialize)]
-pub struct ProverInputs<F> {
-    pub instance_data: HashMap<ColumnIndex, Vec<F>>,
-    pub advice_data: HashMap<ColumnIndex, Vec<F>>
+pub struct ProverInputs<K, F> where K: Hash + Eq {
+    pub instance_data: HashMap<K, Vec<F>>,
+    pub advice_data: HashMap<K, Vec<F>>
 }
 
 pub async fn run_server() {
@@ -10,14 +10,15 @@ pub async fn run_server() {
       .and(warp::body::json())
       // The reason for letting F = [[u8; 8]; 8] instead of F = [u8; 64] is so that
       // serde traits can be derived.
-      .map(|req: ProverInputs<[[u8; 8]; 8]>| {
+      .map(|req: ProverInputs<String, [[u8; 8]; 8]>| {
           let mut instance_data: Vec<Vec<Fp>> = Vec::new();
           let mut advice_data: HashMap<ColumnIndex, Vec<Fp>> = HashMap::new();
-          let mut instance_cols: Vec<ColumnIndex> =
-              req.instance_data.keys().map(|x| *x).collect();
-          instance_cols.sort();
+          let mut instance_cols: Vec<&String> =
+              req.instance_data.keys().collect();
+          // TODO: optimize this sorting by pre-parsing the strings
+          instance_cols.sort_by(|a, b| str::parse::<u64>(a).unwrap().cmp(&str::parse::<u64>(b).unwrap()));
           for i in instance_cols.iter() {
-              let xs: &Vec<[[u8; 8]; 8]> = req.instance_data.get(i).unwrap();
+              let xs: &Vec<[[u8; 8]; 8]> = req.instance_data.get(*i).unwrap();
               instance_data.push(
                   xs.iter()
                     .map(|x: &[[u8; 8]; 8]| {
@@ -34,7 +35,7 @@ pub async fn run_server() {
           };
           for (i, xs) in req.advice_data.iter() {
               advice_data.insert
-                  (*i,
+                  (ColumnIndex { index: str::parse::<u64>(i).unwrap() },
                    xs.iter()
                    .map(|x: &[[u8; 8]; 8]| {
                        let mut x_flat: [u8; 64] = [0; 64];

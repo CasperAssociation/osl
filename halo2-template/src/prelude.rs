@@ -10,11 +10,12 @@ use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
 use std::hash::Hash;
 use std::option::{Option, Option::None};
+use str;
 use serde::{Serialize, Deserialize};
 use warp::Filter;
 use pasta_curves::Fp;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
 pub struct ColumnIndex {
   index: u64
 }
