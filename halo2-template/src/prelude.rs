@@ -4,7 +4,7 @@ use halo2_proofs::{
   circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
   dev::MockProver,
   poly::Rotation,
-  plonk::{Advice, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression, Selector},
+  plonk::{Advice, Any, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression, Selector},
 };
 use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};

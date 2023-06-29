@@ -170,7 +170,7 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
   }
 
   fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-    let selector_all = meta.selector();
+    let selector_all = meta.complex_selector();
     let mut instance_cols = HashMap::new();
     let mut advice_cols = HashMap::new();
     let mut fixed_cols = HashMap::new();
@@ -366,8 +366,12 @@ getAddEqualityConstraintSource cs =
     <> BS.intercalate ", "
          ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
            "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
-             <> ", column: (*config.advice_columns.get(&ColumnIndex { index: "
-             <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into() }")
+             <> ", column: (config.advice_columns.get(&ColumnIndex { index: "
+             <> encodeUtf8 (pack (show ci)) <> " })"
+             <> ".map_or_else(|| config.instance_columns.get(&ColumnIndex { index: "
+             <> encodeUtf8 (pack (show ci)) <> " }).map(|x| (<Column<Instance> as Into<Column<Any>>>::into(*x))), |x| Some(<Column<Advice> as Into<Column<Any>>>::into(*x)))"
+             <> ".or_else(|| Some((*config.fixed_columns.get(&ColumnIndex { index: "
+             <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into()))).unwrap() }")
            <$> Set.toList cs)
     <> "]);"
 
