@@ -176,6 +176,7 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
     let mut instance_cols = HashMap::new();
     let mut advice_cols = HashMap::new();
     let mut fixed_cols = HashMap::new();
+    let mut lookup_tables = Vec::new();
 
 |]
 
@@ -185,7 +186,8 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
       instance_columns: instance_cols,
       advice_columns: advice_cols,
       fixed_columns:  fixed_cols,
-      selector_all: selector_all
+      selector_all: selector_all,
+      lookup_tables: lookup_tables
     }
   }
 
@@ -195,15 +197,6 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
       let ri = RegionIndex::from(0);
       let mut equality_constraints: Vec<Vec<Cell>> = Vec::new();
       let mut fixed_values: HashMap<ColumnIndex, Vec<F>> = HashMap::new();
-|]
-
-
-    postlude = [r|
-      for i in 0 .. (ROW_COUNT-1) {
-        config.selector_all
-          .enable(&mut region, i)
-          .unwrap();
-      }
       for hm in advice_data.into_iter() {
         for (ci, xs) in hm.iter() {
           let col = config.advice_columns.get(ci);
@@ -227,6 +220,21 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
             .unwrap();
         }
       }
+
+|]
+
+
+    postlude = [r|
+
+      for i in 0 .. (ROW_COUNT-1) {
+        config.selector_all
+          .enable(&mut region, i)
+          .unwrap();
+        for tab in &config.lookup_tables {
+          tab.add_row(&mut region, i).unwrap();
+        }
+      }
+
       for cells in &equality_constraints {
         if cells.len() > 0 {
           let cell0 = cells[0];
@@ -270,6 +278,8 @@ getEditConfigureSource c =
       in "let " <> getTableName tab <> " = meta.create_dynamic_table(" <> f l <> ", "
           <> getLookupTableColumnsSource tabFixedCols
           <> ", " <> getLookupTableColumnsSource tabAdviceCols <> ");"
+          <> "\n        lookup_tables.push("
+          <> getTableName tab <> ".clone());"
     AddLookupArgument arg ->
       getAddLookupArgumentSource arg
     AddEqualityConstraint {} -> mempty
@@ -368,19 +378,19 @@ getLookupTableColumnsSource cs =
       <$> cs
 
 getAddEqualityConstraintSource :: Set.Set CellReference -> ByteString
-getAddEqualityConstraintSource _cs = mempty -- TODO
---   "equality_constraints.push(vec!["
---     <> BS.intercalate ", "
---          ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
---            "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
---              <> ", column: (config.advice_columns.get(&ColumnIndex { index: "
---              <> encodeUtf8 (pack (show ci)) <> " })"
---              <> ".map_or_else(|| config.instance_columns.get(&ColumnIndex { index: "
---              <> encodeUtf8 (pack (show ci)) <> " }).map(|x| (<Column<Instance> as Into<Column<Any>>>::into(*x))), |x| Some(<Column<Advice> as Into<Column<Any>>>::into(*x)))"
---              <> ".or_else(|| Some((*config.fixed_columns.get(&ColumnIndex { index: "
---              <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into()))).unwrap() }")
---            <$> Set.toList cs)
---     <> "]);"
+getAddEqualityConstraintSource cs =
+  "equality_constraints.push(vec!["
+    <> BS.intercalate ", "
+         ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
+           "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
+             <> ", column: (config.advice_columns.get(&ColumnIndex { index: "
+             <> encodeUtf8 (pack (show ci)) <> " })"
+             <> ".map_or_else(|| config.instance_columns.get(&ColumnIndex { index: "
+             <> encodeUtf8 (pack (show ci)) <> " }).map(|x| (<Column<Instance> as Into<Column<Any>>>::into(*x))), |x| Some(<Column<Advice> as Into<Column<Any>>>::into(*x)))"
+             <> ".or_else(|| Some((*config.fixed_columns.get(&ColumnIndex { index: "
+             <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into()))).unwrap() }")
+           <$> Set.toList cs)
+    <> "]);"
 
 
 -- NOTE: this assumes that the row indices are contiguous starting at zero,

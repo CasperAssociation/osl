@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- TODO: remove
+
 module Trace.ToArithmeticCircuit (traceTypeToArithmeticCircuit) where
 
 import Control.Lens ((<&>))

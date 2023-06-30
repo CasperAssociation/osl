@@ -4,7 +4,7 @@ use halo2_proofs::{
   circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
   dev::MockProver,
   poly::Rotation,
-  plonk::{Advice, Any, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, Error, Expression, Selector},
+  plonk::{Advice, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, DynamicTable, Error, Expression, Selector},
 };
 use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
@@ -30,5 +30,6 @@ pub struct MyConfig {
   instance_columns: HashMap<ColumnIndex, Column<Instance>>,
   advice_columns: HashMap<ColumnIndex, Column<Advice>>,
   fixed_columns: HashMap<ColumnIndex, Column<Fixed>>,
-  selector_all: Selector
+  selector_all: Selector,
+  lookup_tables: Vec<DynamicTable>
 }

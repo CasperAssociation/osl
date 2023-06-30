@@ -11,7 +11,7 @@ import Control.Lens ((^.))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddEqualityConstraint, AddFixedColumn, AddGate, {- AddLookupArgument, -} AddLookupTable))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, AddLookupTable))
 import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
 import Halo2.Types.ColumnType (ColumnType (Fixed))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
@@ -31,17 +31,17 @@ getCircuitEdits c =
     [ getColumnTypeEdits (c ^. #columnTypes),
       pure $ getEqualityConstrainableColumnsEdits (c ^. #equalityConstrainableColumns),
       pure $ getGateConstraintEdits (c ^. #gateConstraints),
+      pure $ getFixedColumnsEdits (c ^. #columnTypes) (c ^. #fixedValues),
       pure $ uncurry AddLookupTable <$>
         zip (Label . ("tab_" <>) . show <$> [0 :: Int ..])
           (Set.toList
             (Set.map
               (fmap snd . (^. #tableMap))
               (c ^. #lookupArguments . #getLookupArguments))),
+      pure $ AddLookupArgument <$>
+        Set.toList (c ^. #lookupArguments . #getLookupArguments) --,
       -- TODO: re-enable
-      -- pure $ AddLookupArgument <$>
-      --   Set.toList (c ^. #lookupArguments . #getLookupArguments),
       -- pure $ getEqualityConstraintsEdits (c ^. #equalityConstraints),
-      pure $ getFixedColumnsEdits (c ^. #columnTypes) (c ^. #fixedValues)
     ]
 
 getColumnTypeEdits :: ColumnTypes -> Either (ErrorMessage ()) [CircuitEdit]
