@@ -289,11 +289,19 @@ getEditConfigureSource c =
 getEditSynthesizeSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
 getEditSynthesizeSource _c =
   \case
+    AddColumn ci Fixed ->
+      "let c" <> f ci <> ": Column<Any> = (*(config.fixed_columns.get(&ColumnIndex { index: "
+        <> f ci <> " }).unwrap())).into();"
+    AddColumn ci Advice ->
+      "let c" <> f ci <> ": Column<Any> = (*(config.advice_columns.get(&ColumnIndex { index: "
+        <> f ci <> " }).unwrap())).into();"
+    AddColumn ci Instance ->
+      "let c" <> f ci <> ": Column<Any> = (*(config.instance_columns.get(&ColumnIndex { index: "
+        <> f ci <> " }).unwrap())).into();"
     AddEqualityConstraint eq ->
       getAddEqualityConstraintSource eq
     AddFixedColumn ci fvs ->
       getAddFixedColumnSource ci fvs
-    AddColumn {} -> mempty
     EnableEquality {} -> mempty
     AddGate {} -> mempty
     AddLookupTable {} -> mempty
@@ -383,12 +391,7 @@ getAddEqualityConstraintSource cs =
     <> BS.intercalate ", "
          ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
            "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
-             <> ", column: (config.advice_columns.get(&ColumnIndex { index: "
-             <> encodeUtf8 (pack (show ci)) <> " })"
-             <> ".map_or_else(|| config.instance_columns.get(&ColumnIndex { index: "
-             <> encodeUtf8 (pack (show ci)) <> " }).map(|x| (<Column<Instance> as Into<Column<Any>>>::into(*x))), |x| Some(<Column<Advice> as Into<Column<Any>>>::into(*x)))"
-             <> ".or_else(|| Some((*config.fixed_columns.get(&ColumnIndex { index: "
-             <> encodeUtf8 (pack (show ci)) <> " }).unwrap()).into()))).unwrap() }")
+             <> ", column: c" <> f ci <> " }")
            <$> Set.toList cs)
     <> "]);"
 
