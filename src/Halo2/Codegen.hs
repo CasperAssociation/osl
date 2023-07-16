@@ -41,7 +41,7 @@ import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
 import OSL.Types.ErrorMessage (ErrorMessage)
-import Stark.Types.Scalar (Scalar)
+import Stark.Types.Scalar (Scalar, scalarToInt)
 import System.Directory (createDirectoryIfMissing)
 import Text.RawString.QQ (r)
 
@@ -284,7 +284,7 @@ getEditConfigureSource c =
 
 
 getEditSynthesizeSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
-getEditSynthesizeSource _c =
+getEditSynthesizeSource c =
   \case
     AddColumn ci Fixed ->
       "let c" <> f ci <> ": Column<Any> = (*(config.fixed_columns.get(&ColumnIndex { index: "
@@ -298,12 +298,13 @@ getEditSynthesizeSource _c =
     AddEqualityConstraint eq ->
       getAddEqualityConstraintSource eq
     AddFixedColumn ci fvs ->
-      getAddFixedColumnSource ci fvs
+      getAddFixedColumnSource nRows ci fvs
     EnableEquality {} -> mempty
     AddGate {} -> mempty
     AddLookupTable {} -> mempty
     AddLookupArgument {} -> mempty
-
+  where
+    nRows = scalarToInt $ c ^. #rowCount . #getRowCount
 
 f :: Show a => a -> ByteString
 f = encodeUtf8 . pack . show
@@ -395,15 +396,17 @@ getAddEqualityConstraintSource cs =
 
 -- NOTE: this assumes that the row indices are contiguous starting at zero,
 -- and will output the wrong answer if not.
-getAddFixedColumnSource :: ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
-getAddFixedColumnSource ci xs =
-  "fixed_values.insert(ColumnIndex {index:"
-    <> encodeUtf8 (pack (show ci))
-    <> "}, vec!["
-    <> BS.intercalate ","
-         ((<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
-           <$> Map.elems xs)
-    <> "]);"
+getAddFixedColumnSource :: Int -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
+getAddFixedColumnSource nRows ci xs
+  | Map.size xs == nRows =
+    "fixed_values.insert(ColumnIndex {index:"
+      <> encodeUtf8 (pack (show ci))
+      <> "}, vec!["
+      <> BS.intercalate ","
+           ((<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
+             <$> Map.elems xs)
+      <> "]);"
+  | otherwise = die $ "fixed column is of the wrong length (this is a compiler bug): " <> pack (show ci)
        
 
 writeStaticFile :: FilePath -> ByteString -> TargetDirectory -> IO ()
