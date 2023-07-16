@@ -22,8 +22,8 @@ pub async fn run_server() {
                   xs.iter()
                     .map(|x: &[[u8; 8]; 8]| {
                            let mut x_flat: [u8; 64] = [0; 64];
-                           for i in 0..7 {
-                               for j in 0..7 {
+                           for i in 0..8 {
+                               for j in 0..8 {
                                    x_flat[i*8 + j] = (*x)[i][j];
                                }
                            }
@@ -38,8 +38,8 @@ pub async fn run_server() {
                    xs.iter()
                    .map(|x: &[[u8; 8]; 8]| {
                        let mut x_flat: [u8; 64] = [0; 64];
-                       for i in 0..7 {
-                           for j in 0..7 {
+                       for i in 0..8 {
+                           for j in 0..8 {
                                x_flat[i*8 + j] = (*x)[i][j];
                            }
                        }

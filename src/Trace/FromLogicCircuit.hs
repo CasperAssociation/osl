@@ -1591,14 +1591,12 @@ loadFromDifferentCaseStepType numCases m stId vi =
         ]
         3
     )
-    mempty
-    -- TODO: reinstate
-    -- ( LookupArguments . Set.singleton $
-    --     LookupArgument
-    --       (Label $ "loadFromDifferentCase(" <> show vi <> ")")
-    --       P.zero
-    --       [(o, os), (c, cs), (t, ts)]
-    -- )
+    ( LookupArguments . Set.singleton $
+        LookupArgument
+          (Label $ "loadFromDifferentCase(" <> show vi <> ")")
+          P.zero
+          [(o, os), (c, cs), (t, ts)]
+    )
     mempty
   where
     (i0, _i1) = firstTwoInputs m
