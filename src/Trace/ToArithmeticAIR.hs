@@ -248,7 +248,7 @@ additionalFixedValues ::
   FixedMappings ->
   FixedValues (RowIndex 'Absolute)
 additionalFixedValues t m =
-  linksTableFixedColumns (linksTable t) m
+  linksTableFixedColumns t (linksTable t) m
     <> caseAndResultFixedColumns t m
 
 newtype LinksTable = LinksTable
@@ -262,29 +262,34 @@ linksTable =
   LinksTable . fmap (\((st, o), is) -> SubexpressionLink st is o) . Map.toList . (^. #links)
 
 linksTableFixedColumns ::
+  TraceType ->
   LinksTable ->
   FixedMappings ->
   FixedValues (RowIndex 'Absolute)
-linksTableFixedColumns (LinksTable ls) m =
+linksTableFixedColumns tt (LinksTable ls) m =
   FixedValues . Map.fromList $
     [ ( m ^. #stepType . #unMapping,
         FixedColumn . Map.fromList . zip [0 ..] $
-          ls <&> (^. #stepType . #unStepTypeId)
+          f (ls <&> (^. #stepType . #unStepTypeId))
       ),
       ( m ^. #output . #unMapping,
         FixedColumn . Map.fromList . zip [0 ..] $
-          ls <&> (^. #output . #unOutputSubexpressionId . #unSubexpressionId)
+          f (ls <&> (^. #output . #unOutputSubexpressionId . #unSubexpressionId))
       )
     ]
       <> zip
         ((m ^. #inputs) <&> (^. #unMapping))
         [ FixedColumn . Map.fromList . zip [0 ..] $
-            fromMaybe
-              (replicate (length ls) (InputSubexpressionId (SubexpressionId zero)))
+            maybe
+              (replicate nRows (InputSubexpressionId (SubexpressionId zero)))
+              f
               ((ls <&> (^. #inputs)) !? i)
               <&> (^. #unInputSubexpressionId . #unSubexpressionId)
           | i <- [0 .. length (m ^. #inputs) - 1]
         ]
+  where
+    f = take nRows . padInfinitely
+    nRows = scalarToInt $ tt ^. #rowCount . #getRowCount
 
 caseAndResultFixedColumns ::
   TraceType ->

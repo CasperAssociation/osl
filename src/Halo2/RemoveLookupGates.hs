@@ -206,7 +206,7 @@ dummyRowAndColFixedValues ::
   FixedValues (RowIndex Absolute)
 dummyRowAndColFixedValues dri dci c =
   FixedValues . Map.fromList
-    $ [ (ci, FixedColumn $ Map.fromList [ (r', zero) ])
+    $ [ (ci, FixedColumn $ Map.fromList [ (dri ^. #unDummyRowIndex, zero) ])
         | (ci, t) <- Map.toList (c ^. #columnTypes . #getColumnTypes),
           t == Fixed
       ]
@@ -224,7 +224,7 @@ dummyRowAndColFixedValues dri dci c =
     r' =
       maybe
         (die "dummyRowFixedValues: row count is out of range of scalar (this is a compiler bug")
-        RowIndex
+        (RowIndex . subtract 1)
         (integerToInt (scalarToInteger (c ^. #rowCount . #getRowCount)))
 
 

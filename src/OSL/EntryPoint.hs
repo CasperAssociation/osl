@@ -80,8 +80,8 @@ main = do
               putStrLn (unErrorMessage err)
         _ -> putStrLn "could not decode source file; is it not UTF-8?"
     _ -> do
-      putStrLn "Usage: osl FILE NAME --output DIRECTORY"
-      putStrLn "       osl FILE NAME [--test]"
+      putStrLn "Usage: osl FILE NAME ROW_COUNT --output DIRECTORY"
+      putStrLn "       osl FILE NAME ROW_COUNT [--test]"
       putStrLn "       osl actus-dictionary"
 
 newtype TargetName = TargetName String

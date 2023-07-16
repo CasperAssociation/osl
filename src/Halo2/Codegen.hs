@@ -5,8 +5,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-{-# OPTIONS_GHC -Wno-unused-imports #-} -- TODO: remove
-
 module Halo2.Codegen
   ( generateProject,
     TargetDirectory (TargetDirectory)
@@ -212,6 +210,10 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
           };
         }
       }
+|]
+
+
+    postlude = [r|
       for (ci, xs) in &fixed_values {
         let col = config.fixed_columns.get(ci).expect(format!("Could not find column: {}", ci).as_str());
         for (ri, x) in xs.iter().enumerate() {
@@ -221,12 +223,7 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
         }
       }
 
-|]
-
-
-    postlude = [r|
-
-      for i in 0 .. (ROW_COUNT-1) {
+      for i in 0 .. ROW_COUNT {
         config.selector_all
           .enable(&mut region, i)
           .unwrap();
