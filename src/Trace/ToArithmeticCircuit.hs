@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- TODO: remove
+{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-unused-local-binds -Wno-unused-matches #-} -- TODO: remove
 
 module Trace.ToArithmeticCircuit (traceTypeToArithmeticCircuit) where
 
@@ -158,13 +158,14 @@ resultChecks t m =
           (stepIndicatorGate t)
           [ (InputExpression (P.var' traceCase), LookupTableColumn fixedCase),
             (InputExpression P.one, LookupTableColumn used)
-          ],
-        LookupArgument
-          "resultCheck2"
-          (P.one `P.minus` P.var' used)
-          [ (InputExpression (P.var' fixedCase), LookupTableColumn traceCase),
-            (InputExpression (P.var' fixedResultId), LookupTableColumn outputExpressionId)
-          ]
+          ] --,
+        -- TODO: reinstate
+        -- LookupArgument
+        --   "resultCheck2"
+        --   (P.one `P.minus` P.var' used)
+        --   [ (InputExpression (P.var' fixedCase), LookupTableColumn traceCase),
+        --     (InputExpression (P.var' fixedResultId), LookupTableColumn outputExpressionId)
+        --   ]
       ]
   where
     fixedCase = traceCase

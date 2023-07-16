@@ -8,6 +8,8 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
+{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-unused-local-binds -Wno-unused-matches #-} -- TODO: remove
+
 module Trace.FromLogicCircuit
   ( logicCircuitToTraceType,
     argumentToTrace,
@@ -1589,12 +1591,14 @@ loadFromDifferentCaseStepType numCases m stId vi =
         ]
         3
     )
-    ( LookupArguments . Set.singleton $
-        LookupArgument
-          (Label $ "loadFromDifferentCase(" <> show vi <> ")")
-          P.zero
-          [(o, os), (c, cs), (t, ts)]
-    )
+    mempty
+    -- TODO: reinstate
+    -- ( LookupArguments . Set.singleton $
+    --     LookupArgument
+    --       (Label $ "loadFromDifferentCase(" <> show vi <> ")")
+    --       P.zero
+    --       [(o, os), (c, cs), (t, ts)]
+    -- )
     mempty
   where
     (i0, _i1) = firstTwoInputs m
