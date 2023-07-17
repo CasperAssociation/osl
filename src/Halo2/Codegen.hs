@@ -41,7 +41,7 @@ import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Lib.Git (initDB, add)
 import Lib.Git.Type (makeConfig, runGit)
 import OSL.Types.ErrorMessage (ErrorMessage)
-import Stark.Types.Scalar (Scalar)
+import Stark.Types.Scalar (Scalar, scalarToInt)
 import System.Directory (createDirectoryIfMissing)
 import Text.RawString.QQ (r)
 
@@ -206,7 +206,21 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
                   .unwrap();
               }
             },
-            None => () // this must be a fixed column
+            None => {
+              let col = config.fixed_columns.get(ci);
+              match col {
+                Some(col) => {
+                  for (ri, x) in xs.iter().enumerate() {
+                    region
+                      .assign_fixed(|| "", *col, ri, || Value::known(Assigned::from(x)))
+                      .unwrap();
+                  }
+                },
+                None => {
+                  die!("found witness data which does not correlate to a fixed or advice column");
+                }
+              }
+            }
           };
         }
       }
@@ -284,7 +298,7 @@ getEditConfigureSource c =
 
 
 getEditSynthesizeSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
-getEditSynthesizeSource _c =
+getEditSynthesizeSource c =
   \case
     AddColumn ci Fixed ->
       "let c" <> f ci <> ": Column<Any> = (*(config.fixed_columns.get(&ColumnIndex { index: "
@@ -298,7 +312,7 @@ getEditSynthesizeSource _c =
     AddEqualityConstraint eq ->
       getAddEqualityConstraintSource eq
     AddFixedColumn ci fvs ->
-      getAddFixedColumnSource ci fvs
+      getAddFixedColumnSource c ci fvs
     EnableEquality {} -> mempty
     AddGate {} -> mempty
     AddLookupTable {} -> mempty
@@ -371,10 +385,11 @@ getPolyVarSource v =
   "r" <> f (v ^. #colIndex) <> "_" <> f (v ^. #rowIndex) <> ".clone()"
 
 getColumnRotationSource :: PolynomialVariable -> ByteString
-getColumnRotationSource (PolynomialVariable ci j) =
-  "let r" <> f ci <> "_" <> f j <>
+getColumnRotationSource (PolynomialVariable ci 0) =
+  "let r" <> f ci <> "_0" <>
     " = meta.query_any(c" <> f ci <>
-    ", Rotation(" <> f j <> "));"
+    ", Rotation(0));"
+getColumnRotationSource _ = die "Halo2 codegen: cannot handle rotations (this is a compiler bug)"
 
 getLookupTableColumnsSource :: [LookupTableColumn] -> ByteString
 getLookupTableColumnsSource cs =
@@ -393,18 +408,20 @@ getAddEqualityConstraintSource cs =
     <> "]);"
 
 
--- NOTE: this assumes that the row indices are contiguous starting at zero,
--- and will output the wrong answer if not.
-getAddFixedColumnSource :: ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
-getAddFixedColumnSource ci xs =
-  "fixed_values.insert(ColumnIndex {index:"
-    <> encodeUtf8 (pack (show ci))
-    <> "}, vec!["
-    <> BS.intercalate ","
-         ((<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
-           <$> Map.elems xs)
-    <> "]);"
-       
+getAddFixedColumnSource :: ArithmeticCircuit -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
+getAddFixedColumnSource c ci xs
+  | Map.keys xs == [0 .. RowIndex (nRows - 1)] =
+    "fixed_values.insert(ColumnIndex {index:"
+      <> encodeUtf8 (pack (show ci))
+      <> "}, vec!["
+      <> BS.intercalate ","
+           ((<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
+             <$> Map.elems xs)
+      <> "]);"
+  | otherwise =
+     die "getAddFixedColumnSource: not enough rows in fixed column (this is a compiler bug)"    
+  where
+    nRows = scalarToInt $ c ^. #rowCount . #getRowCount
 
 writeStaticFile :: FilePath -> ByteString -> TargetDirectory -> IO ()
 writeStaticFile filename contents (TargetDirectory targetDir) =

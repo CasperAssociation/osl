@@ -1,3 +1,4 @@
+use die::die;
 use ff::{FromUniformBytes, PrimeField};
 use halo2_proofs::{
   arithmetic::Field,
