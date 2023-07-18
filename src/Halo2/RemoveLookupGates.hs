@@ -176,7 +176,7 @@ removeLookupArgumentGates dci'@(DummyRowIndicatorColumnIndex dci) arg =
   LookupArgument
     (arg ^. #label)
     P.zero
-    ([(InputExpression ((d `P.plus` g) `P.minus` (d `P.times` g)),
+    ([(InputExpression (P.normalize ((d `P.plus` g) `P.minus` (d `P.times` g))),
        LookupTableColumn dci)] <>
      (first (gateInputExpression dci' (arg ^. #gate)) <$>
       (arg ^. #tableMap)))
@@ -194,6 +194,7 @@ gateInputExpression ::
   InputExpression Polynomial
 gateInputExpression (DummyRowIndicatorColumnIndex dci) p =
   InputExpression
+    . P.normalize
     . (P.times (P.one `P.minus` P.var' dci))
     . (P.times (P.one `P.minus` p))
     . (^. #getInputExpression)

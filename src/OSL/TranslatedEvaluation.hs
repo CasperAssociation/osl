@@ -495,4 +495,4 @@ evalTranslatedFormula11 rowCount bitsPerByte c name argumentForm argument = do
 
 showInterestingRow :: C.Argument -> String
 showInterestingRow arg =
-  show $ Map.filterWithKey (\k _ -> k ^. #rowIndex == 1530) (arg ^. #witness . #unWitness)
+  show $ Map.filterWithKey (\k _ -> k ^. #rowIndex == 0) (arg ^. #witness . #unWitness)
