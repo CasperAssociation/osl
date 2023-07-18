@@ -144,10 +144,10 @@ getLibSource c = do
           <> ";\n",
         interludeA,
         BS.intercalate "\n"
-          (("    " <>) . getEditConfigureSource c <$> edits),
+          (fmap ("    " <>) . filter (/= mempty) $ getEditConfigureSource c <$> edits),
         interludeB,
         BS.intercalate "\n"
-          (("      " <>) . getEditSynthesizeSource c <$> edits),
+          (fmap ("      " <>) . filter (/= mempty) $ getEditSynthesizeSource c <$> edits),
         postlude,
         entryPoint
       ]
@@ -335,7 +335,7 @@ getAddLookupArgumentSource arg =
     <> getTableName (getLookupTable arg)
     <> ", |meta| {\n"
     <> BS.intercalate "\n"
-         (("       " <>) . getColumnRotationSource
+         (filter (/= mempty) $ ("       " <>) . getColumnRotationSource
            <$> Set.toList (getPolynomialVariables arg)) <> "\n"
     <> "        (selector_all, vec!["
     <> mconcat
@@ -352,7 +352,7 @@ getAddGateSource :: Label -> Polynomial -> ByteString
 getAddGateSource l p =
   "meta.create_gate(" <>  f l <> ", |meta| {\n"
     <> BS.intercalate "\n"
-         (("       " <>) . getColumnRotationSource
+         (filter (/= mempty) $ ("       " <>) . getColumnRotationSource
            <$> Set.toList (getPolynomialVariables p)) <> "\n"
     <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), [\n"
     <> "            Constraint::from(" <> getPolySource p <> ")\n"
