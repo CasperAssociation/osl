@@ -2,4 +2,4 @@ dist-newstyle
 result
 .stack-work
 stack.yaml.lock
-mock-prover/
+mock-prover*/

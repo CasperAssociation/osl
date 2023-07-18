@@ -5,6 +5,8 @@ pub struct ProverInputs<K, F> where K: Hash + Eq {
 }
 
 pub async fn run_server() {
+  let args: Vec<String> = env::args().collect();
+  let port = u16::from_str(&args[1]).unwrap();
   let server = warp::path!("mock_prove")
       .and(warp::post())
       .and(warp::body::json())
@@ -59,8 +61,8 @@ pub async fn run_server() {
           format!("Ran mock prover; system is satisfied!")
       });
 
-  println!("starting OSL prover server on port 1727");
+  println!("starting OSL prover server on port {}", port);
   warp::serve(server)
-    .run(([127, 0, 0, 1], 1727))
+    .run(([127, 0, 0, 1], port))
     .await;
 }

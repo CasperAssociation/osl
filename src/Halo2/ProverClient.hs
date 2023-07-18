@@ -9,7 +9,8 @@
 
 
 module Halo2.ProverClient
-  ( mockProve,
+  ( Port (Port),
+    mockProve,
     buildProver,
     runProver,
     callMockProver
@@ -49,6 +50,9 @@ import Stark.Types.Scalar (Scalar)
 import Turtle (shell, empty, ExitCode (ExitSuccess))
 
 
+newtype Port = Port Int
+
+
 -- Generate and build the Halo2 prover and use it to run the
 -- mock prover API.
 -- Must be supplied with a target directory in which to generate
@@ -63,16 +67,16 @@ mockProve ::
   ArithmeticCircuit ->
   Argument ->
   TargetDirectory ->
+  Port ->
   m ()
-mockProve c arg target = do
+mockProve c arg target (Port port) = do
   buildProver c target
-  -- TODO: withAsync / concurrently
-  withAsync (die "failed to run prover") $ runProver target
+  withAsync (die "failed to run prover") $ runProver target (Port port)
   liftIO $ threadDelay 5000000
   mgr <- liftIO $ newManager defaultManagerSettings { managerResponseTimeout = responseTimeoutNone }
   callMockProver (mkClientEnv mgr baseUrl) arg
   where
-    baseUrl = BaseUrl Http "127.0.0.1" 1727 ""
+    baseUrl = BaseUrl Http "127.0.0.1" port ""
 
 
 -- Generate and build the Halo2 prover.
@@ -82,6 +86,7 @@ buildProver ::
   TargetDirectory ->
   m ()
 buildProver c (TargetDirectory target) = do
+  void . liftIO $ shell ("rm -rf " <> pack target) empty
   liftIO $ generateProject (TargetDirectory target) c
   res <- liftIO $ shell ("cd " <> pack target <> "; nix develop --command cargo build") empty
   when (res /= ExitSuccess) . throwError
@@ -95,10 +100,11 @@ runProver ::
     MonadError (ErrorMessage ()) m
   ) =>
   TargetDirectory ->
+  Port ->
   Async a ->
   m ()
-runProver (TargetDirectory target) server = do
-  res <- liftIO $ shell ("cd " <> pack target <> "; nix develop --command cargo run") empty
+runProver (TargetDirectory target) (Port port) server = do
+  res <- liftIO $ shell ("cd " <> pack target <> "; nix develop --command cargo run " <> pack (show port)) empty
   cancel server
   when (res /= ExitSuccess) . throwError
     $ ErrorMessage () "nix develop --command cargo run: was not successful"
