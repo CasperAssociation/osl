@@ -33,7 +33,6 @@ pub async fn run_server() {
               );
           };
           for (i, xs) in req.advice_data.iter() {
-              let mut is_first = true;
               advice_data.insert
                   (ColumnIndex { index: str::parse::<u64>(i).unwrap() },
                    xs.iter()
@@ -45,10 +44,6 @@ pub async fn run_server() {
                                }
                            }
                            let x = FromUniformBytes::from_uniform_bytes(&x_flat);
-                           if is_first {
-                               println!("{:?}: {:?} -> {:?}", i, x_flat, x);
-                               is_first = false;
-                           };
                            x
                        }).collect());
           };

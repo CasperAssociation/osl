@@ -10,6 +10,9 @@ data-files:
   examples/*.osl
   examples/regressions/*.osl
 
+extra-source-files:
+  halo2-template/*
+
 library
   exposed-modules:
     Actus.Core

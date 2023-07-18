@@ -16,12 +16,9 @@ module OSL.TranslatedEvaluation
   )
 where
 
-import Debug.Trace (trace)
-
 import Control.Lens ((^.))
 import Control.Monad.Trans.Except (ExceptT, except, withExceptT)
 import Data.Either.Extra (mapLeft)
-import qualified Data.Map as Map
 import Halo2.Circuit (HasEvaluate (evaluate))
 import qualified Halo2.Types.Argument as C
 import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
@@ -490,9 +487,4 @@ evalTranslatedFormula11 rowCount bitsPerByte c name argumentForm argument = do
     ( \(ErrorMessage () msg) ->
         ErrorMessage Nothing ("mockProve: " <> msg)
     )
-    (mockProve ac'' (trace (showInterestingRow arg'') arg'') "./mock-prover")
-
-
-showInterestingRow :: C.Argument -> String
-showInterestingRow arg =
-  show $ Map.filterWithKey (\k _ -> k ^. #rowIndex == 0) (arg ^. #witness . #unWitness)
+    (mockProve ac'' arg'' "./mock-prover")

@@ -354,7 +354,7 @@ getAddGateSource l p =
     <> BS.intercalate "\n"
          (filter (/= mempty) $ ("       " <>) . getColumnRotationSource
            <$> Set.toList (getPolynomialVariables p)) <> "\n"
-    <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), [\n"
+    <> "        Constraints::with_selector(meta.query_selector(selector_all), [\n"
     <> "            Constraint::from(" <> getPolySource p <> ")\n"
     <> "        ])\n"
     <> "    });"

@@ -39,7 +39,7 @@ import Halo2.Types.CellReference (CellReference)
 import Halo2.Types.Circuit (ArithmeticCircuit)
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
-import Network.HTTP.Client (newManager, defaultManagerSettings)
+import Network.HTTP.Client (newManager, defaultManagerSettings, managerResponseTimeout, responseTimeoutNone)
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 import Servant.API ((:>), ReqBody, JSON, PlainText, Post)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv, Scheme (Http), ClientM, client, mkClientEnv, runClientM)
@@ -64,9 +64,10 @@ mockProve ::
   m ()
 mockProve c arg target = do
   buildProver c target
+  -- TODO: withAsync / concurrently
   void . async $ runProver target
   liftIO $ threadDelay 5000000
-  mgr <- liftIO $ newManager defaultManagerSettings
+  mgr <- liftIO $ newManager defaultManagerSettings { managerResponseTimeout = responseTimeoutNone }
   callMockProver (mkClientEnv mgr baseUrl) arg
   where
     baseUrl = BaseUrl Http "127.0.0.1" 1727 ""
@@ -125,8 +126,8 @@ encodeScalarBytesLE =
   take 64
     . unfoldr
       (\x -> let (a, b) = x `divMod` 256
-               -- a = x / 8
-               -- b = x mod 8
+               -- a = x / 256
+               -- b = x mod 256
              in (,a) <$> integerToWord8 b)
     . (^. #unScalar)
 

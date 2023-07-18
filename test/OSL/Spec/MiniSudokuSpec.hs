@@ -174,11 +174,11 @@ exampleSpec c = do
     it "a positive case" $ do
       result <- runExceptT $ evalTranslatedFormula11 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleArgument c)
       result `shouldBe` Right ()
--- TODO: enable the negative case
--- 
+
+--     TODO: enable the negative case
 --     it "a negative case" $ do
 --       result <- liftIO . runExceptT $ evalTranslatedFormula11 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
---       result `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(104,Just 1)] out of 1531")
+--       result `shouldBe` Left (ErrorMessage Nothing "mockProve: mock prover returned error: ConnectionError (HttpExceptionRequest Request {\n  host                 = \"127.0.0.1\"\n  port                 = 1727\n  secure               = False\n  requestHeaders       = [(\"Accept\",\"text/plain;charset=utf-8\"),(\"Content-Type\",\"application/json;charset=utf-8\")]\n  path                 = \"/mock_prove\"\n  queryString          = \"\"\n  method               = \"POST\"\n  proxy                = Nothing\n  rawBody              = False\n  redirectCount        = 10\n  responseTimeout      = ResponseTimeoutDefault\n  requestVersion       = HTTP/1.1\n  proxySecureMode      = ProxySecureWithConnect\n}\n NoResponseDataReceived)")
 
 
 
