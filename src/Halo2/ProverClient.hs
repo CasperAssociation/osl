@@ -124,7 +124,9 @@ encodeScalarBytesLE :: Scalar -> [Word8]
 encodeScalarBytesLE =
   take 64
     . unfoldr
-      (\x -> let (a, b) = x `divMod` 8
+      (\x -> let (a, b) = x `divMod` 256
+               -- a = x / 8
+               -- b = x mod 8
              in (,a) <$> integerToWord8 b)
     . (^. #unScalar)
 

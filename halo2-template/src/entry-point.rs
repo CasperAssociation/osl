@@ -33,18 +33,24 @@ pub async fn run_server() {
               );
           };
           for (i, xs) in req.advice_data.iter() {
+              let mut is_first = true;
               advice_data.insert
                   (ColumnIndex { index: str::parse::<u64>(i).unwrap() },
                    xs.iter()
-                   .map(|x: &[[u8; 8]; 8]| {
-                       let mut x_flat: [u8; 64] = [0; 64];
-                       for i in 0..7 {
-                           for j in 0..7 {
-                               x_flat[i*8 + j] = (*x)[i][j];
+                       .map(|x: &[[u8; 8]; 8]| {
+                           let mut x_flat: [u8; 64] = [0; 64];
+                           for i in 0..7 {
+                               for j in 0..7 {
+                                   x_flat[i*8 + j] = (*x)[i][j];
+                               }
                            }
-                       }
-                       FromUniformBytes::from_uniform_bytes(&x_flat)
-                   }).collect());
+                           let x = FromUniformBytes::from_uniform_bytes(&x_flat);
+                           if is_first {
+                               println!("{:?}: {:?} -> {:?}", i, x_flat, x);
+                               is_first = false;
+                           };
+                           x
+                       }).collect());
           };
           let circuit = MyCircuit { advice_data: Some(advice_data) };
           let prover =
