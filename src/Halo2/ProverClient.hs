@@ -19,7 +19,7 @@ module Halo2.ProverClient
 
 import Cast (integerToWord8)
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async.Lifted (Async, cancel, withAsync)
+import Control.Concurrent.Async.Lifted (cancel, withAsync)
 import Control.Lens ((^.))
 import Control.Monad (void, when)
 import Control.Monad.Base (MonadBase)
@@ -33,7 +33,6 @@ import qualified Data.Map as Map
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (Text, pack)
 import Data.Word (Word8)
-import Die (die)
 import GHC.Generics (Generic)
 import Halo2.Circuit (getCellMapColumns)
 import Halo2.Codegen (generateProject)
@@ -71,10 +70,11 @@ mockProve ::
   m ()
 mockProve c arg target (Port port) = do
   buildProver c target
-  withAsync (die "failed to run prover") $ runProver target (Port port)
-  liftIO $ threadDelay 5000000
-  mgr <- liftIO $ newManager defaultManagerSettings { managerResponseTimeout = responseTimeoutNone }
-  callMockProver (mkClientEnv mgr baseUrl) arg
+  withAsync (runProver target (Port port)) $ \server -> do
+    liftIO $ threadDelay 5000000
+    mgr <- liftIO $ newManager defaultManagerSettings { managerResponseTimeout = responseTimeoutNone }
+    callMockProver (mkClientEnv mgr baseUrl) arg
+    cancel server
   where
     baseUrl = BaseUrl Http "127.0.0.1" port ""
 
@@ -101,11 +101,9 @@ runProver ::
   ) =>
   TargetDirectory ->
   Port ->
-  Async a ->
   m ()
-runProver (TargetDirectory target) (Port port) server = do
+runProver (TargetDirectory target) (Port port) = do
   res <- liftIO $ shell ("cd " <> pack target <> "; nix develop --command cargo run " <> pack (show port)) empty
-  cancel server
   when (res /= ExitSuccess) . throwError
     $ ErrorMessage () "nix develop --command cargo run: was not successful"
 
