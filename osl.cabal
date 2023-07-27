@@ -10,6 +10,9 @@ data-files:
   examples/*.osl
   examples/regressions/*.osl
 
+extra-source-files:
+  halo2-template/*
+
 library
   exposed-modules:
     Actus.Core
@@ -204,6 +207,7 @@ library
     text -any,
     time,
     transformers,
+    transformers-base,
     turtle,
     validation,
     validity

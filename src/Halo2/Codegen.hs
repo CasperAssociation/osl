@@ -144,10 +144,10 @@ getLibSource c = do
           <> ";\n",
         interludeA,
         BS.intercalate "\n"
-          (("    " <>) . getEditConfigureSource c <$> edits),
+          (fmap ("    " <>) . filter (/= mempty) $ getEditConfigureSource c <$> edits),
         interludeB,
         BS.intercalate "\n"
-          (("      " <>) . getEditSynthesizeSource c <$> edits),
+          (fmap ("      " <>) . filter (/= mempty) $ getEditSynthesizeSource c <$> edits),
         postlude,
         entryPoint
       ]
@@ -206,7 +206,21 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
                   .unwrap();
               }
             },
-            None => () // this must be a fixed column
+            None => {
+              let col = config.fixed_columns.get(ci);
+              match col {
+                Some(col) => {
+                  for (ri, x) in xs.iter().enumerate() {
+                    region
+                      .assign_fixed(|| "", *col, ri, || Value::known(Assigned::from(x)))
+                      .unwrap();
+                  }
+                },
+                None => {
+                  die!("found witness data which does not correlate to a fixed or advice column");
+                }
+              }
+            }
           };
         }
       }
@@ -298,13 +312,11 @@ getEditSynthesizeSource c =
     AddEqualityConstraint eq ->
       getAddEqualityConstraintSource eq
     AddFixedColumn ci fvs ->
-      getAddFixedColumnSource nRows ci fvs
+      getAddFixedColumnSource c ci fvs
     EnableEquality {} -> mempty
     AddGate {} -> mempty
     AddLookupTable {} -> mempty
     AddLookupArgument {} -> mempty
-  where
-    nRows = scalarToInt $ c ^. #rowCount . #getRowCount
 
 f :: Show a => a -> ByteString
 f = encodeUtf8 . pack . show
@@ -322,7 +334,7 @@ getAddLookupArgumentSource arg =
     <> getTableName (getLookupTable arg)
     <> ", |meta| {\n"
     <> BS.intercalate "\n"
-         (("       " <>) . getColumnRotationSource
+         (filter (/= mempty) $ ("       " <>) . getColumnRotationSource
            <$> Set.toList (getPolynomialVariables arg)) <> "\n"
     <> "        (selector_all, vec!["
     <> mconcat
@@ -339,9 +351,9 @@ getAddGateSource :: Label -> Polynomial -> ByteString
 getAddGateSource l p =
   "meta.create_gate(" <>  f l <> ", |meta| {\n"
     <> BS.intercalate "\n"
-         (("       " <>) . getColumnRotationSource
+         (filter (/= mempty) $ ("       " <>) . getColumnRotationSource
            <$> Set.toList (getPolynomialVariables p)) <> "\n"
-    <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), [\n"
+    <> "        Constraints::with_selector(meta.query_selector(selector_all), [\n"
     <> "            Constraint::from(" <> getPolySource p <> ")\n"
     <> "        ])\n"
     <> "    });"
@@ -372,10 +384,11 @@ getPolyVarSource v =
   "r" <> f (v ^. #colIndex) <> "_" <> f (v ^. #rowIndex) <> ".clone()"
 
 getColumnRotationSource :: PolynomialVariable -> ByteString
-getColumnRotationSource (PolynomialVariable ci j) =
-  "let r" <> f ci <> "_" <> f j <>
+getColumnRotationSource (PolynomialVariable ci 0) =
+  "let r" <> f ci <> "_0" <>
     " = meta.query_any(c" <> f ci <>
-    ", Rotation(" <> f j <> "));"
+    ", Rotation(0));"
+getColumnRotationSource _ = die "Halo2 codegen: cannot handle rotations (this is a compiler bug)"
 
 getLookupTableColumnsSource :: [LookupTableColumn] -> ByteString
 getLookupTableColumnsSource cs =
@@ -394,11 +407,9 @@ getAddEqualityConstraintSource cs =
     <> "]);"
 
 
--- NOTE: this assumes that the row indices are contiguous starting at zero,
--- and will output the wrong answer if not.
-getAddFixedColumnSource :: Int -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
-getAddFixedColumnSource nRows ci xs
-  | Map.size xs == nRows =
+getAddFixedColumnSource :: ArithmeticCircuit -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
+getAddFixedColumnSource c ci xs
+  | Map.keys xs == [0 .. RowIndex (nRows - 1)] =
     "fixed_values.insert(ColumnIndex {index:"
       <> encodeUtf8 (pack (show ci))
       <> "}, vec!["
@@ -406,8 +417,10 @@ getAddFixedColumnSource nRows ci xs
            ((<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
              <$> Map.elems xs)
       <> "]);"
-  | otherwise = die $ "fixed column is of the wrong length (this is a compiler bug): " <> pack (show ci)
-       
+  | otherwise =
+     die "getAddFixedColumnSource: not enough rows in fixed column (this is a compiler bug)"    
+  where
+    nRows = scalarToInt $ c ^. #rowCount . #getRowCount
 
 writeStaticFile :: FilePath -> ByteString -> TargetDirectory -> IO ()
 writeStaticFile filename contents (TargetDirectory targetDir) =

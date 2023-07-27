@@ -5,6 +5,8 @@ pub struct ProverInputs<K, F> where K: Hash + Eq {
 }
 
 pub async fn run_server() {
+  let args: Vec<String> = env::args().collect();
+  let port = u16::from_str(&args[1]).unwrap();
   let server = warp::path!("mock_prove")
       .and(warp::post())
       .and(warp::body::json())
@@ -36,15 +38,16 @@ pub async fn run_server() {
               advice_data.insert
                   (ColumnIndex { index: str::parse::<u64>(i).unwrap() },
                    xs.iter()
-                   .map(|x: &[[u8; 8]; 8]| {
-                       let mut x_flat: [u8; 64] = [0; 64];
-                       for i in 0..8 {
-                           for j in 0..8 {
-                               x_flat[i*8 + j] = (*x)[i][j];
+                       .map(|x: &[[u8; 8]; 8]| {
+                           let mut x_flat: [u8; 64] = [0; 64];
+                           for i in 0..8 {
+                               for j in 0..8 {
+                                   x_flat[i*8 + j] = (*x)[i][j];
+                               }
                            }
-                       }
-                       FromUniformBytes::from_uniform_bytes(&x_flat)
-                   }).collect());
+                           let x = FromUniformBytes::from_uniform_bytes(&x_flat);
+                           x
+                       }).collect());
           };
           let circuit = MyCircuit { advice_data: Some(advice_data) };
           let prover =
@@ -58,8 +61,8 @@ pub async fn run_server() {
           format!("Ran mock prover; system is satisfied!")
       });
 
-  println!("starting OSL prover server on port 1727");
+  println!("starting OSL prover server on port {}", port);
   warp::serve(server)
-    .run(([127, 0, 0, 1], 1727))
+    .run(([127, 0, 0, 1], port))
     .await;
 }
