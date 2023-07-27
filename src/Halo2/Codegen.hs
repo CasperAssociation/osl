@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLabels #-}
@@ -64,7 +65,7 @@ generateProject td@(TargetDirectory targetDirectory) c = do
   runGit (makeConfig targetDirectory Nothing) $ do
     initDB False
     add $
-      (("./") <>)
+      ("./" <>)
         <$> [ "LICENSE",
               "NOTICE",
               ".gitignore",
@@ -178,7 +179,9 @@ getLibSource c = do
 
     interludeA =
       [r|
+#ifndef __HLINT__
 #[derive(Clone)]
+#endif
 pub struct MyCircuit<F> {
   advice_data: Option<HashMap<ColumnIndex, Vec<F>>>
 }
@@ -462,7 +465,6 @@ getAddEqualityConstraintSource cs =
           <$> Set.toList cs
       )
     <> "]);"
-
 
 getAddFixedColumnSource :: ArithmeticCircuit -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
 getAddFixedColumnSource c ci xs

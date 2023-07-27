@@ -15,7 +15,7 @@ where
 
 import Control.Arrow (second)
 import Control.Lens ((%~), (.~), (^.))
-import Data.List (sortBy)
+import Data.List (foldl', sortBy)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
@@ -70,7 +70,7 @@ doReplacementOnCircuit ::
   ArithmeticCircuit ->
   ArithmeticCircuit
 doReplacementOnCircuit m c =
-  (#lookupArguments)
+  #lookupArguments
     .~ LookupArguments
       ( Set.map
           (doReplacementOnLookupArgument m)
@@ -111,7 +111,7 @@ insertNewAdviceInColumnTypes ::
   ArithmeticCircuit
 insertNewAdviceInColumnTypes (InstanceToAdviceMapping m) c =
   (#columnTypes . #getColumnTypes)
-    .~ foldl
+    .~ foldl'
       (.)
       id
       [ Map.insert k Advice
@@ -174,8 +174,7 @@ getFirstUnusedColumnIndex ::
   ArithmeticCircuit ->
   ColumnIndex
 getFirstUnusedColumnIndex =
-  fromMaybe 0
-    . fmap ((+ 1) . fst)
+  maybe 0 ((+ 1) . fst)
     . Map.lookupMax
     . (^. #columnTypes . #getColumnTypes)
 
@@ -192,7 +191,7 @@ reorderLookupTableColumnsInLookupArgument ::
   LookupArgument Polynomial ->
   LookupArgument Polynomial
 reorderLookupTableColumnsInLookupArgument c =
-  (#tableMap) %~ sortBy cmp
+  #tableMap %~ sortBy cmp
   where
     cmp (_, LookupTableColumn ci) (_, LookupTableColumn cj) =
       case (getColumnType c ci, getColumnType c cj) of
@@ -211,7 +210,7 @@ replicateInstanceToAdviceInArgument ::
   Either (ErrorMessage ()) Argument
 replicateInstanceToAdviceInArgument c arg = do
   fs <- getFs
-  pure ((#witness) %~ foldl (.) id fs $ arg)
+  pure (#witness %~ foldl' (.) id fs $ arg)
   where
     getFs :: Either (ErrorMessage ()) [Witness -> Witness]
     getFs = do

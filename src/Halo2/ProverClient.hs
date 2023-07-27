@@ -117,7 +117,7 @@ instance FromJSON EncodedArgument
 -- Turn a scalar into a little-endian byte string and group into groups of eight.
 encodeScalar :: Scalar -> [[Word8]]
 encodeScalar =
-  unfoldr (\xs -> if null xs then Nothing else pure (take 8 xs, drop 8 xs))
+  unfoldr (\xs -> if null xs then Nothing else pure (splitAt 8 xs))
     . encodeScalarBytesLE
 
 -- Turn a scalar into a little-endian byte string.

@@ -774,7 +774,7 @@ polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c x = do
     a =
       fromMaybe
         (die "polyVarDifferentCaseSubexpressionTraces: offset row index mod row count out of range of scalar (this is a compiler bug")
-        (integerToScalar ((scalarToInteger ((c ^. #unCase) Group.+ r)) `mod` scalarToInteger n))
+        (integerToScalar (scalarToInteger ((c ^. #unCase) Group.+ r) `mod` scalarToInteger n))
     divZero = "polyVarDifferentCaseSubexpressionTraces: division by zero"
     d = (((c ^. #unCase) Group.+ r) Group.- a) Ring.* fromMaybe (die divZero) (inverseScalar n)
     specialAdvice = Map.fromList [(ai, a), (di, d)]

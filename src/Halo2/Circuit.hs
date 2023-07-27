@@ -553,7 +553,7 @@ instance HasEvaluate (RowCount, LogicConstraints) () where
       ( \(lbl, c) -> do
           r <- evaluate ann arg (rc, c)
           unless
-            (r == (Map.fromList ((,Just True) <$> Set.toList allRows)))
+            (r == Map.fromList ((,Just True) <$> Set.toList allRows))
             ( Left
                 ( ErrorMessage
                     ann
@@ -661,20 +661,19 @@ instance
   HasEvaluate (Circuit a b) ()
   where
   evaluate ann arg c =
-    void $
-      sequence
-        [ evaluate ann arg (c ^. #columnTypes),
-          evaluate ann arg (c ^. #rowCount),
-          evaluate ann arg (c ^. #rowCount, c ^. #gateConstraints),
-          evaluate ann arg (c ^. #rowCount, c ^. #lookupArguments),
-          evaluate
-            ann
-            arg
-            ( c ^. #equalityConstrainableColumns,
-              c ^. #equalityConstraints
-            ),
-          evaluate ann arg (c ^. #fixedValues)
-        ]
+    sequence_
+      [ evaluate ann arg (c ^. #columnTypes),
+        evaluate ann arg (c ^. #rowCount),
+        evaluate ann arg (c ^. #rowCount, c ^. #gateConstraints),
+        evaluate ann arg (c ^. #rowCount, c ^. #lookupArguments),
+        evaluate
+          ann
+          arg
+          ( c ^. #equalityConstrainableColumns,
+            c ^. #equalityConstraints
+          ),
+        evaluate ann arg (c ^. #fixedValues)
+      ]
 
 instance HasEvaluate ColumnTypes () where
   evaluate ann arg (ColumnTypes m) =

@@ -115,7 +115,7 @@ getDummyRowEqualityConstraints ::
 getDummyRowEqualityConstraints dri c =
   EqualityConstraints . (: []) . EqualityConstraint $
     Set.fromList
-      [ (CellReference ci (dri ^. #unDummyRowIndex))
+      [ CellReference ci (dri ^. #unDummyRowIndex)
         | ci <- Map.keys (c ^. #columnTypes . #getColumnTypes)
       ]
 
@@ -185,8 +185,8 @@ gateInputExpression ::
 gateInputExpression (DummyRowIndicatorColumnIndex dci) p =
   InputExpression
     . P.normalize
-    . (P.times (P.one `P.minus` P.var' dci))
-    . (P.times (P.one `P.minus` p))
+    . P.times (P.one `P.minus` P.var' dci)
+    . P.times (P.one `P.minus` p)
     . (^. #getInputExpression)
 
 dummyRowAndColFixedValues ::

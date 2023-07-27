@@ -4,7 +4,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Stark.Types.Scalar
   ( Scalar,
@@ -150,8 +149,8 @@ scalarToInt :: Scalar -> Int
 scalarToInt = fromMaybe (die "scalarToInt partiality") . toIntegralSized . toInteger
 
 zero, one, minusOne, two, half :: Scalar
-zero = fromMaybe (die "zero: partiality") (fromInteger 0)
-one = fromMaybe (die "zero: partiality") (fromInteger 1)
+zero = 0
+one = 1
 minusOne = negateScalar one
-two = fromMaybe (die "zero: partiality") (fromInteger 2)
+two = 2
 half = fromMaybe (die "half: partiality") (inverseScalar two)
