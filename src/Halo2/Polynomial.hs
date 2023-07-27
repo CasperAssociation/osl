@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
@@ -15,6 +16,7 @@ module Halo2.Polynomial
     sum,
     degree,
     eval,
+    normalize,
   )
 where
 
@@ -114,3 +116,6 @@ eval (Polynomial p) f =
     [ c * foldl' (*) 1 [f x ^ e | (x, e) <- Map.toList pp]
       | (PowerProduct pp, Coefficient c) <- Map.toList p
     ]
+
+normalize :: Polynomial -> Polynomial
+normalize = Polynomial . Map.filter (/= Coefficient S.zero) . (^. #monos)

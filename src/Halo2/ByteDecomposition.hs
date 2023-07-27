@@ -1,7 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module Halo2.ByteDecomposition
@@ -22,19 +21,19 @@ import Halo2.Types.Byte (Byte (..))
 import Halo2.Types.ByteDecomposition (ByteDecomposition (..))
 import Halo2.Types.FixedBound (FixedBound (..))
 import Halo2.Types.Sign (Sign (Negative, Positive))
-import Stark.Types.Scalar (Scalar, fromWord64, integerToScalar, normalize, scalarToInteger)
+import Stark.Types.Scalar (Scalar, integerToScalar, scalarToInteger)
 
 -- Splits a scalar into its sign and its unsigned part, based on the idea
 -- that if x > |F|/2, then x is negative.
 getSignAndUnsignedPart :: Scalar -> (Sign, Scalar)
-getSignAndUnsignedPart (normalize -> x) =
-  let x' = normalize (Group.negate x)
+getSignAndUnsignedPart x =
+  let x' = Group.negate x
    in if x' < x
         then (Negative, x')
         else (Positive, x)
 
 decomposeBytes :: BitsPerByte -> Scalar -> ByteDecomposition
-decomposeBytes bitsPerByte (normalize -> x) =
+decomposeBytes bitsPerByte x =
   let (s, x') = getSignAndUnsignedPart x
    in ByteDecomposition s (decomposeBytesPositive bitsPerByte x')
 
@@ -79,5 +78,5 @@ countBytes bits (FixedBound b) =
       bits
       ( fromMaybe
           (die "countBytes: bound out of range (this is a compiler bug)")
-          (fromWord64 (b - 1))
+          (integerToScalar (b - 1))
       )

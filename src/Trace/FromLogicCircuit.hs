@@ -7,6 +7,8 @@
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+-- TODO: remove
+{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-unused-local-binds -Wno-unused-matches #-}
 
 module Trace.FromLogicCircuit
   ( logicCircuitToTraceType,
@@ -64,7 +66,7 @@ import OSL.Map (curryMap)
 import OSL.Types.Arity (Arity (Arity))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 import Safe (headMay)
-import Stark.Types.Scalar (Scalar, integerToScalar, inverseScalar, normalize, one, scalarToInteger, two, zero)
+import Stark.Types.Scalar (Scalar, integerToScalar, inverseScalar, one, scalarToInteger, two, zero)
 import Trace.Types (Case (Case), CaseNumberColumnIndex (..), InputColumnIndex (..), InputSubexpressionId (..), NumberOfCases (NumberOfCases), OutputColumnIndex (..), OutputSubexpressionId (..), ResultExpressionId (ResultExpressionId), Statement (Statement), StepIndicatorColumnIndex (..), StepType (StepType), StepTypeId (StepTypeId), StepTypeIdSelectionVector (StepTypeIdSelectionVector), SubexpressionId (SubexpressionId), SubexpressionLink (..), SubexpressionTrace (SubexpressionTrace), Trace (Trace), TraceType (TraceType), Witness (Witness))
 
 newtype LookupCaches = LookupCaches
@@ -296,7 +298,7 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
     LC.Atom (LC.Equals x y) -> do
       (m0, s0, x') <- term x
       (m1, s1, y') <- term y
-      advice <- getByteDecomposition ann lc mapping (normalize (x' Group.- y'))
+      advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       s2 <- getOperationSubexpressionId ann mapping (Equals' s0 s1)
       let v = if x' == y' then one else zero
           m2 = Map.singleton c (Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #equals . #unOf) advice))
@@ -304,7 +306,7 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
     LC.Atom (LC.LessThan x y) -> do
       (m0, s0, x') <- term x
       (m1, s1, y') <- term y
-      advice <- getByteDecomposition ann lc mapping (normalize (x' Group.- y'))
+      advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       s2 <- getOperationSubexpressionId ann mapping (LessThan' s0 s1)
       let v = if x' < y' then one else zero
           m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #lessThan . #unOf) advice)
@@ -312,7 +314,7 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
     LC.Not p -> do
       (m0, s0, x') <- rec p
       s1 <- getOperationSubexpressionId ann mapping (Not' s0)
-      let v = normalize (one Group.- x')
+      let v = one Group.- x'
           m1 = Map.singleton c $ Map.singleton s1 (SubexpressionTrace v (mapping ^. #stepTypeIds . #not . #unOf) defaultAdvice)
       pure (Map.unionWith (<>) m0 m1, s1, v)
     t@(LC.And p q) -> do
@@ -340,7 +342,7 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
         else do
           (m1, s1, y') <- rec q
           s2 <- withTrace t (getOperationSubexpressionId ann mapping (Or' s0 s1))
-          let v = normalize $ (x' Group.+ y') Group.- (x' Ring.* y')
+          let v = (x' Group.+ y') Group.- (x' Ring.* y')
               m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #or . #unOf) defaultAdvice)
           pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Iff p q -> do
@@ -616,7 +618,7 @@ logicTermSubexpressionTraces ann lc arg mapping tables c =
       (m0, s0, x') <- rec x
       (m1, s1, y') <- rec y
       s2 <- getOperationSubexpressionId ann mapping (Max' s0 s1)
-      advice <- getByteDecomposition ann lc mapping (normalize (x' Group.- y'))
+      advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       let v = x' `max` y'
           m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #maxT . #unOf) advice)
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
@@ -624,7 +626,7 @@ logicTermSubexpressionTraces ann lc arg mapping tables c =
       (m0, s0, x') <- rec x
       (m1, s1, y') <- rec y
       s2 <- getOperationSubexpressionId ann mapping (LessThan' s0 s1)
-      advice <- getByteDecomposition ann lc mapping (normalize (x' Group.- y'))
+      advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       let v = x' `lessIndicator` y'
           m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #lessThan . #unOf) advice)
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
@@ -770,12 +772,11 @@ polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c x = do
     n = numCases ^. #unNumberOfCases
     r = rowIndexToScalar (x ^. #rowIndex)
     a =
-      normalize $
-        fromMaybe
-          (die "polyVarDifferentCaseSubexpressionTraces: offset row index mod row count out of range of scalar (this is a compiler bug")
-          (integerToScalar (scalarToInteger (normalize ((c ^. #unCase) Group.+ r)) `mod` scalarToInteger n))
+      fromMaybe
+        (die "polyVarDifferentCaseSubexpressionTraces: offset row index mod row count out of range of scalar (this is a compiler bug")
+        (integerToScalar (scalarToInteger ((c ^. #unCase) Group.+ r) `mod` scalarToInteger n))
     divZero = "polyVarDifferentCaseSubexpressionTraces: division by zero"
-    d = normalize $ normalize (((c ^. #unCase) Group.+ r) Group.- a) Ring.* fromMaybe (die divZero) (inverseScalar n)
+    d = (((c ^. #unCase) Group.+ r) Group.- a) Ring.* fromMaybe (die divZero) (inverseScalar n)
     specialAdvice = Map.fromList [(ai, a), (di, d)]
     advice = specialAdvice <> defaultAdvice
 

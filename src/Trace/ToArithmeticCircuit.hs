@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
+-- TODO: remove
+{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-unused-local-binds -Wno-unused-matches #-}
 
 module Trace.ToArithmeticCircuit (traceTypeToArithmeticCircuit) where
 
-import qualified Algebra.Additive as Group
 import Control.Lens ((<&>))
 import Data.List.Extra (foldl')
 import qualified Data.Map as Map
@@ -26,7 +27,7 @@ import Halo2.Types.LookupArguments (LookupArguments (LookupArguments))
 import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.RowIndex (RowIndex (..))
-import Stark.Types.Scalar (one, scalarToInt, zero)
+import Stark.Types.Scalar (scalarToInt)
 import Trace.FromLogicCircuit (Mapping)
 import Trace.ToArithmeticAIR (Mappings, mappings, traceTypeToArithmeticAIR)
 import Trace.Types (StepTypeId, TraceType)
@@ -103,6 +104,8 @@ inputChecks t m =
           let y = t ^. #outputColumnIndex . #unOutputColumnIndex
       ]
 
+-- TODO: I had a case column in this check but why? Doesn't make sense to me
+-- in retrospect and so I took it out, but is that right?
 linkChecks ::
   TraceType ->
   Mappings ->
@@ -118,18 +121,16 @@ linkChecks t m =
               -- tau is the step type id
               -- alphas are the input subexpression ids
               -- beta is the output subexpression id
-              (InputExpression <$> ([currentCase, tau] <> alphas <> [beta]))
+              (InputExpression <$> ([tau] <> alphas <> [beta]))
               (LookupTableColumn <$> links)
           )
       ]
   where
-    tau, beta, currentCase :: Polynomial
+    tau, beta :: Polynomial
     alphas :: [Polynomial]
     links :: [ColumnIndex]
-    caseNumber, subexpressionId :: ColumnIndex
-    caseNumber = t ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex
+    subexpressionId :: ColumnIndex
     subexpressionId = m ^. #advice . #output . #unMapping
-    currentCase = P.var' caseNumber
     -- TODO: check that the selection vector values are all in {0,1}
     tau =
       foldr
@@ -141,7 +142,7 @@ linkChecks t m =
     alphas = P.var' <$> ((m ^. #advice . #inputs) <&> (^. #unMapping))
     beta = P.var' subexpressionId
     links =
-      [caseNumber, m ^. #fixed . #stepType . #unMapping]
+      [m ^. #fixed . #stepType . #unMapping]
         <> ((m ^. #fixed . #inputs) <&> (^. #unMapping))
         <> [m ^. #fixed . #output . #unMapping]
 
@@ -154,18 +155,17 @@ resultChecks t m =
     Set.fromList
       [ LookupArgument
           "resultCheck1"
-          ( P.var' (t ^. #stepIndicatorColumnIndex . #unStepIndicatorColumnIndex)
-              `P.minus` P.one
-          )
+          (stepIndicatorGate t)
           [ (InputExpression (P.var' traceCase), LookupTableColumn fixedCase),
             (InputExpression P.one, LookupTableColumn used)
-          ],
-        LookupArgument
-          "resultCheck2"
-          (P.one `P.minus` P.var' used)
-          [ (InputExpression (P.var' fixedCase), LookupTableColumn traceCase),
-            (InputExpression (P.var' fixedResultId), LookupTableColumn outputExpressionId)
-          ]
+          ] --,
+          -- TODO: reinstate
+          -- LookupArgument
+          --   "resultCheck2"
+          --   (P.one `P.minus` P.var' used)
+          --   [ (InputExpression (P.var' fixedCase), LookupTableColumn traceCase),
+          --     (InputExpression (P.var' fixedResultId), LookupTableColumn outputExpressionId)
+          --   ]
       ]
   where
     fixedCase = traceCase
@@ -209,16 +209,12 @@ gateStepTypeLookupArgument ::
 gateStepTypeLookupArgument t sIds arg =
   LookupArgument
     (arg ^. #label)
-    (P.plus (P.times alpha (stepIndicatorGate t)) (stepTypesGate t sIds))
+    ( P.one
+        `P.minus` ( stepIndicatorGate t
+                      `P.times` stepTypesGate t sIds
+                  )
+    )
     (arg ^. #tableMap)
-  where
-    alpha =
-      P.constant $
-        foldl'
-          max
-          zero
-          (Map.keys (t ^. #stepTypes) <&> (^. #unStepTypeId))
-          Group.+ one
 
 stepIndicatorGate ::
   TraceType ->
@@ -245,8 +241,7 @@ stepTypesGate ::
   Set StepTypeId ->
   Polynomial
 stepTypesGate t sIds =
-  P.one
-    `P.minus` foldl' P.plus P.zero [stepTypeGate t sId | sId <- Set.toList sIds]
+  foldl' P.plus P.zero [stepTypeGate t sId | sId <- Set.toList sIds]
 
 traceTypeEqualityConstraints ::
   TraceType ->

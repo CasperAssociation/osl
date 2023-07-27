@@ -10,16 +10,24 @@ module OSL.TranslatedEvaluation
     evalTranslatedFormula6,
     evalTranslatedFormula7,
     evalTranslatedFormula8,
+    evalTranslatedFormula9,
+    evalTranslatedFormula10,
+    evalTranslatedFormula11,
   )
 where
 
 import Control.Lens ((^.))
+import Control.Monad.Trans.Except (ExceptT, except, withExceptT)
 import Data.Either.Extra (mapLeft)
 import Halo2.Circuit (HasEvaluate (evaluate))
+import Halo2.MungeLookupArguments (mungeArgument, mungeLookupArguments)
+import Halo2.ProverClient (Port, mockProve)
+import Halo2.RemoveLookupGates (removeLookupGates, removeLookupGatesArgumentConversion)
 import qualified Halo2.Types.Argument as C
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.Circuit (LogicCircuit)
-import Halo2.Types.RowCount (RowCount (RowCount))
+import Halo2.Types.RowCount (RowCount)
+import Halo2.Types.TargetDirectory (TargetDirectory)
 import OSL.Argument (toSigma11Argument)
 import qualified OSL.Sigma11 as S11
 import OSL.Term (dropTermAnnotations)
@@ -225,12 +233,13 @@ evalTranslatedFormula5 c name argumentForm argument = do
 
 toLogicCircuit ::
   Show ann =>
+  RowCount ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) (LogicCircuit, C.Argument)
-toLogicCircuit c name argumentForm argument = do
+toLogicCircuit rowCount c name argumentForm argument = do
   (def, translated, _aux) <- translateToFormulaSimple c name
   let (translated', _mapping) = deBruijnToGensyms translated
   (qs, qff) <-
@@ -248,7 +257,6 @@ toLogicCircuit c name argumentForm argument = do
       (\(ErrorMessage _ msg) -> ErrorMessage Nothing ("toPNFFormula: " <> msg))
       (toPNFFormula () translated''')
   let semi = toSemicircuit pnff
-      rowCount = RowCount 81 -- TODO: calculate or pass this in
       (logic, layout) = semicircuitToLogicCircuit rowCount semi
   s11arg <-
     mapLeft
@@ -278,13 +286,14 @@ toLogicCircuit c name argumentForm argument = do
 -- Sixth codegen pass: Semicircuit.Sigma11 -> LogicCircuit
 evalTranslatedFormula6 ::
   Show ann =>
+  RowCount ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
-  Either (ErrorMessage (Maybe ann)) Bool
-evalTranslatedFormula6 c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+  Either (ErrorMessage (Maybe ann)) ()
+evalTranslatedFormula6 rowCount c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   mapLeft
     ( \(ErrorMessage () msg) ->
         ErrorMessage
@@ -296,14 +305,15 @@ evalTranslatedFormula6 c name argumentForm argument = do
 -- Seventh codegen pass: LogicCircuit -> TraceType
 evalTranslatedFormula7 ::
   Show ann =>
+  RowCount ->
   BitsPerByte ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
   Either (ErrorMessage (Maybe ann)) ()
-evalTranslatedFormula7 bitsPerByte c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+evalTranslatedFormula7 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
   t <-
     mapLeft
@@ -316,14 +326,15 @@ evalTranslatedFormula7 bitsPerByte c name argumentForm argument = do
 -- Eighth codegen pass: TraceType -> ArithmeticCircuit
 evalTranslatedFormula8 ::
   Show ann =>
+  RowCount ->
   BitsPerByte ->
   ValidContext t ann ->
   Name ->
   ArgumentForm ->
   Argument ->
-  Either (ErrorMessage (Maybe ann)) Bool
-evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
-  (logic, lcArg) <- toLogicCircuit c name argumentForm argument
+  Either (ErrorMessage (Maybe ann)) ()
+evalTranslatedFormula8 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
       lcM = getMapping bitsPerByte logic
       ac = traceTypeToArithmeticCircuit tt lcM
@@ -344,3 +355,143 @@ evalTranslatedFormula8 bitsPerByte c name argumentForm argument = do
         ErrorMessage Nothing ("evaluate: " <> msg)
     )
     (Halo2.Circuit.evaluate () arg ac)
+
+-- Ninth codegen pass: ArithmeticCircuit -> ArithmeticCircuit (remove lookup gates)
+evalTranslatedFormula9 ::
+  Show ann =>
+  RowCount ->
+  BitsPerByte ->
+  ValidContext t ann ->
+  Name ->
+  ArgumentForm ->
+  Argument ->
+  Either (ErrorMessage (Maybe ann)) ()
+evalTranslatedFormula9 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
+  let tt = logicCircuitToTraceType bitsPerByte logic
+      lcM = getMapping bitsPerByte logic
+      ac = traceTypeToArithmeticCircuit tt lcM
+  ac' <-
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("removeLookupGates: " <> msg)
+      )
+      (removeLookupGates ac)
+  t <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("argumentToTrace: " <> msg)
+      )
+      (argumentToTrace Nothing bitsPerByte logic lcArg)
+  arg <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("traceToArgument: " <> msg)
+      )
+      (traceToArgument Nothing tt lcM t)
+  let arg' = removeLookupGatesArgumentConversion ac arg
+  mapLeft
+    ( \(ErrorMessage () msg) ->
+        ErrorMessage Nothing ("evaluate: " <> msg)
+    )
+    (Halo2.Circuit.evaluate () arg' ac')
+
+-- Tenth codegen pass: ArithmeticCircuit -> ArithmeticCircuit (munge lookup arguments)
+evalTranslatedFormula10 ::
+  Show ann =>
+  RowCount ->
+  BitsPerByte ->
+  ValidContext t ann ->
+  Name ->
+  ArgumentForm ->
+  Argument ->
+  Either (ErrorMessage (Maybe ann)) ()
+evalTranslatedFormula10 rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- toLogicCircuit rowCount c name argumentForm argument
+  let tt = logicCircuitToTraceType bitsPerByte logic
+      lcM = getMapping bitsPerByte logic
+      ac = traceTypeToArithmeticCircuit tt lcM
+  ac' <-
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("removeLookupGates: " <> msg)
+      )
+      (removeLookupGates ac)
+  let ac'' = mungeLookupArguments ac'
+  t <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("argumentToTrace: " <> msg)
+      )
+      (argumentToTrace Nothing bitsPerByte logic lcArg)
+  arg <-
+    mapLeft
+      ( \(ErrorMessage ann msg) ->
+          ErrorMessage ann ("traceToArgument: " <> msg)
+      )
+      (traceToArgument Nothing tt lcM t)
+  let arg' = removeLookupGatesArgumentConversion ac arg
+  arg'' <-
+    mapLeft
+      ( \(ErrorMessage () msg) ->
+          ErrorMessage Nothing ("mungeArgument: " <> msg)
+      )
+      (mungeArgument ac' arg')
+  mapLeft
+    ( \(ErrorMessage () msg) ->
+        ErrorMessage Nothing ("evaluate: " <> msg)
+    )
+    (Halo2.Circuit.evaluate () arg'' ac'')
+
+-- Eleventh codegen pass: Rust
+evalTranslatedFormula11 ::
+  Show ann =>
+  TargetDirectory ->
+  Port ->
+  RowCount ->
+  BitsPerByte ->
+  ValidContext t ann ->
+  Name ->
+  ArgumentForm ->
+  Argument ->
+  ExceptT (ErrorMessage (Maybe ann)) IO ()
+evalTranslatedFormula11 target port rowCount bitsPerByte c name argumentForm argument = do
+  (logic, lcArg) <- except $ toLogicCircuit rowCount c name argumentForm argument
+  let tt = logicCircuitToTraceType bitsPerByte logic
+      lcM = getMapping bitsPerByte logic
+      ac = traceTypeToArithmeticCircuit tt lcM
+  ac' <-
+    except $
+      mapLeft
+        ( \(ErrorMessage () msg) ->
+            ErrorMessage Nothing ("removeLookupGates: " <> msg)
+        )
+        (removeLookupGates ac)
+  let ac'' = mungeLookupArguments ac'
+  t <-
+    except $
+      mapLeft
+        ( \(ErrorMessage ann msg) ->
+            ErrorMessage ann ("argumentToTrace: " <> msg)
+        )
+        (argumentToTrace Nothing bitsPerByte logic lcArg)
+  arg <-
+    except $
+      mapLeft
+        ( \(ErrorMessage ann msg) ->
+            ErrorMessage ann ("traceToArgument: " <> msg)
+        )
+        (traceToArgument Nothing tt lcM t)
+  let arg' = removeLookupGatesArgumentConversion ac arg
+  arg'' <-
+    except $
+      mapLeft
+        ( \(ErrorMessage () msg) ->
+            ErrorMessage Nothing ("mungeArgument: " <> msg)
+        )
+        (mungeArgument ac' arg')
+  withExceptT
+    ( \(ErrorMessage () msg) ->
+        ErrorMessage Nothing ("mockProve: " <> msg)
+    )
+    (mockProve ac'' arg'' target port)

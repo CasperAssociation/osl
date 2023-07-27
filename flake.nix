@@ -14,6 +14,10 @@
     horizon-platform = {
       url = "git+https://gitlab.homotopic.tech/horizon/horizon-platform";
     };
+    libgit-src = {
+      url = "github:vincenthz/hs-libgit";
+      flake = false;
+    };
   };
   outputs =
     inputs@
@@ -21,6 +25,7 @@
     , flake-utils
     , flake-compat-ci
     , horizon-platform
+    , libgit-src
     , lint-utils
     , nixpkgs
     , ...
@@ -32,6 +37,7 @@
       hsPkgs =
         with pkgs.haskell.lib;
         horizon-platform.legacyPackages.${system}.extend (hfinal: hprev: {
+           libgit = hprev.callCabal2nix "libgit" libgit-src { };
            osl = dontHaddock (dontCheck (disableLibraryProfiling (hprev.callCabal2nix "osl" ./. { })));
            osl-spec = disableLibraryProfiling (hprev.callCabal2nix "osl:spec" ./. { });
         });

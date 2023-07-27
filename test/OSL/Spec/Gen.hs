@@ -118,5 +118,5 @@ genValueOfType (ValidContext c) =
 
 genScalar :: Gen Scalar.Scalar
 genScalar = do
-  r <- Scalar.fromWord64 <$> arbitrary
+  r <- Scalar.integerToScalar . (`mod` Scalar.order) <$> arbitrary
   maybe genScalar pure r

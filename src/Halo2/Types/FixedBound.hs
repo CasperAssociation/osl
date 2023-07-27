@@ -12,14 +12,12 @@ module Halo2.Types.FixedBound
   )
 where
 
-import Cast (integerToWord64, word64ToInteger)
-import Data.Word (Word64)
 import Die (die)
 import Halo2.Prelude
 import Stark.Types.Scalar (order)
 
 newtype FixedBound = FixedBound
-  {unFixedBound :: Word64}
+  {unFixedBound :: Integer}
   deriving stock (Generic)
   deriving newtype (Show, Eq, Ord)
 
@@ -32,13 +30,12 @@ instance Num FixedBound where
   negate = die "FixedBound.negate: not implemented"
 
 fixedBoundToInteger :: FixedBound -> Integer
-fixedBoundToInteger = word64ToInteger . unFixedBound
+fixedBoundToInteger = unFixedBound
 
 integerToFixedBound :: Integer -> FixedBound
 integerToFixedBound k =
-  case integerToWord64 (abs k) of
-    Just w -> if w < order then FixedBound w else FixedBound order
-    Nothing -> FixedBound order
+  let w = abs k
+   in if w < order then FixedBound w else FixedBound order
 
 boolBound :: FixedBound
 boolBound = FixedBound 2

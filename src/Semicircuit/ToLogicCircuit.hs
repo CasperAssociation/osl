@@ -26,7 +26,7 @@ module Semicircuit.ToLogicCircuit
   )
 where
 
-import Cast (intToInteger, integerToInt, word64ToInteger)
+import Cast (intToInteger, integerToInt)
 import Control.Lens ((<&>), (^.))
 import Control.Monad (foldM, forM, replicateM)
 import Control.Monad.State (State, evalState, get, put)
@@ -849,7 +849,7 @@ sigma11TermToLogicConstraintTerm layout =
     IndLess x y -> rec x `LC.IndLess` rec y
     Max x y -> rec x `LC.Max` rec y
     Const x ->
-      if x < word64ToInteger order
+      if x < order
         then LC.Const (fromInteger x)
         else die $ "in termToPolynomial: constant term " <> pack (show x) <> " is greater than or equal to the field order " <> pack (show order) <> " (this is a compiler bug; should have been caught earlier)"
   where
@@ -1010,44 +1010,48 @@ universalTableConstraints ::
   LogicConstraints
 universalTableConstraints x layout =
   LogicConstraints
-    [ ( "universalTableConstraint",
-        foldl'
-          Or
-          ( -- this is the last row
-            Atom (lastRowIndicator `Equals` LC.Const one)
-              `Or` foldl'
+    ( if lastU >= 0
+        then
+          [ ( "universalTableConstraint",
+              foldl'
                 Or
-                -- all variables are maxed out and the next row looks the same
-                ( foldl'
-                    And
-                    ( Atom ((u lastU 0 `LC.Plus` LC.Const one) `Equals` bound lastU)
-                        `And` Atom (u lastU 0 `Equals` u lastU 1)
-                    )
-                    [ Atom ((u j 0 `LC.Plus` LC.Const one) `Equals` bound j)
-                        `And` Atom (u j 1 `Equals` u j 0)
-                      | j <- [0 .. lastU - 1]
-                    ]
+                ( -- this is the last row
+                  Atom (lastRowIndicator `Equals` LC.Const one)
+                    `Or` foldl'
+                      Or
+                      -- all variables are maxed out and the next row looks the same
+                      ( foldl'
+                          And
+                          ( Atom ((u lastU 0 `LC.Plus` LC.Const one) `Equals` bound lastU)
+                              `And` Atom (u lastU 0 `Equals` u lastU 1)
+                          )
+                          [ Atom ((u j 0 `LC.Plus` LC.Const one) `Equals` bound j)
+                              `And` Atom (u j 1 `Equals` u j 0)
+                            | j <- [0 .. lastU - 1]
+                          ]
+                      )
+                      -- the next row is lexicographically next, by incrementing var j,
+                      -- for some j
+                      [next j | j <- [0 .. lastU]]
                 )
-                -- the next row is lexicographically next, by incrementing var j,
-                -- for some j
-                [next j | j <- [0 .. lastU]]
-          )
-          [ -- this is a dummy row
-            foldl'
-              And
-              ( foldl'
-                  And
-                  (Atom (bound i `Equals` LC.Const zero))
-                  [next j | j <- [0 .. i - 1]]
-              )
-              [ Atom (u j 0 `Equals` LC.Const zero) -- TODO is this needed?
-                  `And` Atom (u j 1 `Equals` LC.Const zero)
-                | j <- [i .. lastU]
-              ]
-            | i <- [0 .. lastU]
+                [ -- this is a dummy row
+                  foldl'
+                    And
+                    ( foldl'
+                        And
+                        (Atom (bound i `Equals` LC.Const zero))
+                        [next j | j <- [0 .. i - 1]]
+                    )
+                    [ Atom (u j 0 `Equals` LC.Const zero) -- TODO is this needed?
+                        `And` Atom (u j 1 `Equals` LC.Const zero)
+                      | j <- [i .. lastU]
+                    ]
+                  | i <- [0 .. lastU]
+                ]
+            )
           ]
-      )
-    ]
+        else mempty
+    )
     mempty
   where
     lastU :: UniQIndex

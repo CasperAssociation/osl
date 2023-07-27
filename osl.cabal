@@ -10,6 +10,9 @@ data-files:
   examples/*.osl
   examples/regressions/*.osl
 
+extra-source-files:
+  halo2-template/*
+
 library
   exposed-modules:
     Actus.Core
@@ -35,10 +38,15 @@ library
     Halo2.ArithmetizationConfig
     Halo2.ByteDecomposition
     Halo2.Circuit
+    Halo2.CircuitEdits
     Halo2.CircuitMetrics
+    Halo2.Codegen
     Halo2.LogicConstraint
+    Halo2.MungeLookupArguments
     Halo2.Polynomial
     Halo2.PowerProduct
+    Halo2.ProverClient
+    Halo2.RemoveLookupGates
     Halo2.TruthTable
     Halo2.Types.AIR
     Halo2.Types.ArithmetizationConfig
@@ -50,6 +58,7 @@ library
     Halo2.Types.BytesPerWord
     Halo2.Types.CellReference
     Halo2.Types.Circuit
+    Halo2.Types.CircuitEdit
     Halo2.Types.CircuitMetrics
     Halo2.Types.CircuitWithWitnesses
     Halo2.Types.Coefficient
@@ -79,6 +88,7 @@ library
     Halo2.Types.RowIndex
     Halo2.Types.RowCount
     Halo2.Types.Sign
+    Halo2.Types.TargetDirectory
     Halo2.Types.Witness
     Halo2.Types.WitnessColumns
     Halo2.Types.WitnessGenerationContext
@@ -121,6 +131,7 @@ library
     OSL.Types.Sigma11.StaticEvaluationContext
     OSL.Types.Sigma11.Value
     OSL.Types.Sigma11.ValueTree
+    OSL.Types.Stages
     OSL.Types.Token
     OSL.Types.Translation
     OSL.Types.TranslationContext
@@ -157,12 +168,15 @@ library
   build-depends:
     base >= 4.9 && < 5,
     aeson,
+    async,
     basement,
     bytestring,
     containers,
     cryptonite,
+    directory,
     either,
     extra,
+    file-embed,
     generic-lens,
     genvalidity,
     genvalidity-bytestring,
@@ -170,8 +184,11 @@ library
     genvalidity-sydtest-aeson,
     ghc-prim,
     hedgehog -any,
+    http-client,
     lens,
-    text,
+    libgit,
+    lifted-async,
+    monad-control,
     mtl,
     numeric-prelude,
     optparse-applicative,
@@ -179,7 +196,10 @@ library
     process,
     QuickCheck,
     random,
+    raw-strings-qq,
     safe,
+    servant,
+    servant-client,
     sort,
     sydtest,
     sydtest-discover,
@@ -187,6 +207,8 @@ library
     text -any,
     time,
     transformers,
+    transformers-base,
+    turtle,
     validation,
     validity
 
@@ -205,6 +227,7 @@ test-suite spec
   other-modules:
     OSL.Spec.Gen
     OSL.Spec.FromHaskellSpec
+    OSL.Spec.MiniSudokuSpec
     OSL.Spec.OSLSpec
     OSL.Spec.SimplifyTypeSpec
     OSL.Spec.Sudoku.Types
