@@ -13,16 +13,17 @@ where
 
 import qualified Algebra.Additive as Group
 import qualified Algebra.Ring as Ring
-import Cast (integerToInt)
+import Cast (intToInteger)
 import Control.Lens ((<&>), (^.))
 import Control.Monad (forM, forM_, unless, when)
 import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (maybeToList)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (pack)
+import Die (die)
 import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnIndex (ColumnIndex)
@@ -35,10 +36,10 @@ import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialConstraints (PolynomialConstraints)
 import Halo2.Types.PolynomialVariable (PolynomialVariable)
 import Halo2.Types.PowerProduct (PowerProduct)
-import Halo2.Types.RowIndex (RowIndex (RowIndex))
+import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
-import Stark.Types.Scalar (Scalar, one, scalarToInteger, zero)
-import Trace.Types (Case, OutputSubexpressionId (..), ResultExpressionId (ResultExpressionId), StepType, SubexpressionId, SubexpressionTrace, Trace, TraceType)
+import Stark.Types.Scalar (Scalar, one, integerToScalar, zero)
+import Trace.Types (OutputSubexpressionId (..), ResultExpressionId (ResultExpressionId), StepType, SubexpressionId, SubexpressionTrace, Trace, TraceType)
 import Trace.Types.EvaluationContext (ContextType (Global, Local), EvaluationContext (EvaluationContext))
 
 evalTrace ::
@@ -52,8 +53,8 @@ evalTrace ann tt t = do
   -- TODO: check that all step type selection vectors have the correct number of ones
   checkAllEqualityConstraintsAreSatisfied ann tt t
 
-getUsedCases :: Trace -> Set Case
-getUsedCases = Map.keysSet . (^. #subexpressions)
+getUsedRows :: Trace -> Set (RowIndex Absolute)
+getUsedRows = Map.keysSet . (^. #subexpressions)
 
 checkAllResultsArePresentForUsedCases ::
   ann ->
@@ -61,7 +62,7 @@ checkAllResultsArePresentForUsedCases ::
   Trace ->
   Either (ErrorMessage ann) ()
 checkAllResultsArePresentForUsedCases ann tt t =
-  forM_ (getUsedCases t) $ \c ->
+  forM_ (getUsedRows t) $ \c ->
     forM_ (tt ^. #results) $ \(ResultExpressionId sId) ->
       maybe
         ( Left
@@ -83,30 +84,30 @@ checkAllStepConstraintsAreSatisfied ::
 checkAllStepConstraintsAreSatisfied ann tt t = do
   gc <- getGlobalEvaluationContext ann tt t
   forM_ (Map.toList (t ^. #subexpressions)) $
-    \(c, ss) ->
+    \(ri, ss) ->
       forM_ (Map.toList ss) $
         \(sId, sT) -> do
-          lc <- getSubexpressionEvaluationContext ann tt t gc (c, sId, sT)
-          checkStepConstraintsAreSatisfied ann tt c sT sId lc
+          lc <- getSubexpressionEvaluationContext ann tt t gc (ri, sId, sT)
+          checkStepConstraintsAreSatisfied ann tt ri sT sId lc
 
 checkStepConstraintsAreSatisfied ::
   ann ->
   TraceType ->
-  Case ->
+  RowIndex Absolute ->
   SubexpressionTrace ->
   SubexpressionId ->
   EvaluationContext 'Local ->
   Either (ErrorMessage ann) ()
-checkStepConstraintsAreSatisfied ann tt c sT sId ec =
+checkStepConstraintsAreSatisfied ann tt ri sT sId ec =
   case Map.lookup (sT ^. #stepType) (tt ^. #stepTypes) of
     Just st -> do
-      checkPolynomialConstraints ann c ec (st ^. #gateConstraints) sT sId
-      checkLookupArguments ann c ec (st ^. #lookupArguments)
+      checkPolynomialConstraints ann ri ec (st ^. #gateConstraints) sT sId
+      checkLookupArguments ann ri ec (st ^. #lookupArguments)
     Nothing -> Left (ErrorMessage ann "step type id not defined in trace type")
 
 checkPolynomialConstraints ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   PolynomialConstraints ->
   SubexpressionTrace ->
@@ -123,7 +124,7 @@ checkPolynomialConstraints ann c ec cs sT sId =
 
 evalPolynomial ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   Polynomial ->
   Either (ErrorMessage ann) Scalar
@@ -133,7 +134,7 @@ evalPolynomial ann c ec p =
 
 evalMonomial ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   (PowerProduct, Coefficient) ->
   Either (ErrorMessage ann) Scalar
@@ -142,7 +143,7 @@ evalMonomial ann c ec (pp, c') =
 
 evalPowerProduct ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   PowerProduct ->
   Either (ErrorMessage ann) Scalar
@@ -154,7 +155,7 @@ evalPowerProduct ann c ec pp =
 
 evalPolynomialVariable ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   PolynomialVariable ->
   Either (ErrorMessage ann) Scalar
@@ -174,23 +175,23 @@ evalPolynomialVariable ann c ec v =
 
 checkLookupArguments ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   LookupArguments Polynomial ->
   Either (ErrorMessage ann) ()
-checkLookupArguments ann c ec args =
-  mapM_ (checkLookupArgument ann c ec) (args ^. #getLookupArguments)
+checkLookupArguments ann ri ec args =
+  mapM_ (checkLookupArgument ann ri ec) (args ^. #getLookupArguments)
 
 checkLookupArgument ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   LookupArgument Polynomial ->
   Either (ErrorMessage ann) ()
-checkLookupArgument ann c ec arg = do
-  g <- evalPolynomial ann c ec (arg ^. #gate)
+checkLookupArgument ann ri ec arg = do
+  g <- evalPolynomial ann ri ec (arg ^. #gate)
   when (g == zero) $ do
-    is <- evalInputExpressions ann c ec (arg ^. #tableMap)
+    is <- evalInputExpressions ann ri ec (arg ^. #tableMap)
     case Map.lookup
       (Set.fromList (snd <$> arg ^. #tableMap))
       (ec ^. #lookupTables) of
@@ -210,7 +211,7 @@ checkLookupArgument ann c ec arg = do
 
 evalInputExpressions ::
   ann ->
-  Case ->
+  RowIndex Absolute ->
   EvaluationContext 'Local ->
   [(InputExpression Polynomial, LookupTableColumn)] ->
   Either (ErrorMessage ann) (Map LookupTableColumn Scalar)
@@ -251,13 +252,12 @@ getGlobalCellMap ::
 getGlobalCellMap ec =
   Map.fromList
     [ (CellReference ci ri, x)
-      | ((c, ci), x) <- Map.toList (ec ^. #globalMappings),
-        ri <- maybeToList $ RowIndex <$> integerToInt (scalarToInteger (c ^. #unCase))
+      | ((ri, ci), x) <- Map.toList (ec ^. #globalMappings)
     ]
 
 addFixedValuesToEvaluationContext ::
   EvaluationContext 'Global ->
-  FixedValues Case ->
+  FixedValues (RowIndex Absolute) ->
   EvaluationContext 'Global
 addFixedValuesToEvaluationContext ec vs =
   ec' <> ec
@@ -302,7 +302,7 @@ getGlobalEvaluationContext ann tt t = do
 getGlobalMappings ::
   TraceType ->
   Trace ->
-  Map (Case, ColumnIndex) Scalar
+  Map (RowIndex Absolute, ColumnIndex) Scalar
 getGlobalMappings tt t =
   mconcat
     [ t ^. #statement . #unStatement,
@@ -313,10 +313,13 @@ getGlobalMappings tt t =
 getCaseNumberColumnMappings ::
   TraceType ->
   Trace ->
-  Map (Case, ColumnIndex) Scalar
+  Map (RowIndex Absolute, ColumnIndex) Scalar
 getCaseNumberColumnMappings tt t =
   Map.fromList
-    [((i, col), i ^. #unCase) | i <- Set.toList (getUsedCases t)]
+    [((i, col), i')
+      | i <- Set.toList (getUsedRows t),
+        i' <- maybeToList (integerToScalar (intToInteger (i ^. #getRowIndex)))
+    ]
   where
     col = tt ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex
 
@@ -343,7 +346,7 @@ getSubexpressionEvaluationContext ::
   TraceType ->
   Trace ->
   EvaluationContext 'Global ->
-  (Case, SubexpressionId, SubexpressionTrace) ->
+  (RowIndex Absolute, SubexpressionId, SubexpressionTrace) ->
   Either (ErrorMessage ann) (EvaluationContext 'Local)
 getSubexpressionEvaluationContext ann tt t gc (c, sId, sT) =
   EvaluationContext
@@ -394,7 +397,12 @@ getSubexpressionEvaluationContext ann tt t gc (c, sId, sT) =
       pure $ Map.singleton (tt ^. #outputColumnIndex . #unOutputColumnIndex) (sT ^. #value)
 
     caseNumberMapping =
-      pure (Map.singleton (tt ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex) (c ^. #unCase))
+      pure
+        (Map.singleton
+          (tt ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex)
+          (fromMaybe
+            (die "Trace.Semantics.getSubexpressionEvaluationContext: row index is out of range of scalar (this is a compiler bug")
+            (integerToScalar (intToInteger (c ^. #getRowIndex)))))
 
     stepTypeMapping =
       pure $

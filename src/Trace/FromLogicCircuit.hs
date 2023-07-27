@@ -60,7 +60,7 @@ import Halo2.Types.PolynomialConstraints (PolynomialConstraints (..))
 import Halo2.Types.PolynomialDegreeBound (PolynomialDegreeBound (..))
 import Halo2.Types.PolynomialVariable (PolynomialVariable (..))
 import Halo2.Types.RowCount (RowCount (RowCount))
-import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Relative))
+import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute, Relative))
 import Halo2.Types.Sign (Sign (Negative, Positive))
 import OSL.Map (curryMap)
 import OSL.Types.Arity (Arity (Arity))
@@ -68,6 +68,46 @@ import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 import Safe (headMay)
 import Stark.Types.Scalar (Scalar, integerToScalar, inverseScalar, one, scalarToInteger, two, zero)
 import Trace.Types (Case (Case), CaseNumberColumnIndex (..), InputColumnIndex (..), InputSubexpressionId (..), NumberOfCases (NumberOfCases), OutputColumnIndex (..), OutputSubexpressionId (..), ResultExpressionId (ResultExpressionId), Statement (Statement), StepIndicatorColumnIndex (..), StepType (StepType), StepTypeId (StepTypeId), StepTypeIdSelectionVector (StepTypeIdSelectionVector), SubexpressionId (SubexpressionId), SubexpressionLink (..), SubexpressionTrace (SubexpressionTrace), Trace (Trace), TraceType (TraceType), Witness (Witness))
+
+newtype MaxStepsPerCase = MaxStepsPerCase { unMaxStepsPerCase :: Scalar }
+  deriving (Generic, Show)
+
+rowIndexToCase :: RowIndex Absolute -> Case
+rowIndexToCase =
+  maybe
+    (die "Trace.FromLogicCircuit.logicCircuitToTraceType: could not convert row index to case")
+    Case
+    . integerToScalar
+    . intToInteger
+    . (^. #getRowIndex)
+
+-- Type-casts the keys in the fixed values from row indices to cases.
+rowIndexFixedValuesToCaseFixedValues ::
+  FixedValues (RowIndex Absolute) -> FixedValues Case
+rowIndexFixedValuesToCaseFixedValues =
+  FixedValues
+    . fmap (FixedColumn . Map.mapKeys rowIndexToCase . (^. #unFixedColumn))
+    . (^. #getFixedValues)
+
+-- Replicates the fixed values for a case into each row for that case.
+-- NOTE: this is NOT the inverse of rowIndexValuesToCaseFixedValues!
+caseFixedValuesToRowFixedValues ::
+  MaxStepsPerCase ->
+  FixedValues Case ->
+  FixedValues (RowIndex Absolute)
+caseFixedValuesToRowFixedValues (MaxStepsPerCase n) (FixedValues fvs) =
+  FixedValues
+    ( FixedColumn . Map.fromList . zip [0 ..]
+        . concatMap (replicate n')
+        . Map.elems
+        . (^. #unFixedColumn)
+        <$> fvs
+    )
+  where
+    n' =
+      fromMaybe (die "Trace.FromLogicCircuit.caseFixedValuesToRowFixedValues: max steps per case > max Int")
+        . integerToInt
+        . scalarToInteger $ n
 
 newtype LookupCaches = LookupCaches
   { lookupTermCaches ::
@@ -170,19 +210,21 @@ argumentToTrace ::
   Either (ErrorMessage ann) Trace
 argumentToTrace ann bitsPerByte lc arg = do
   usedCases <- logicCircuitUsedCases ann lc
+  let usedRowIndices = die "todo"
   voidId <-
     maybe
       (Left (ErrorMessage ann "no void subexpression id"))
       (pure . (^. #unOf))
       (mapping ^. #subexpressionIds . #void)
   Trace
-    <$> logicCircuitStatementToTraceStatement ann (arg ^. #statement)
-    <*> logicCircuitWitnessToTraceWitness ann (arg ^. #witness)
-    <*> ( Map.unionWith (<>) (voidCase usedCases voidId)
-            <$> argumentSubexpressionTraces ann lc arg mapping usedCases
+    <$> logicCircuitStatementToTraceStatement ann lc (arg ^. #statement)
+    <*> logicCircuitWitnessToTraceWitness ann lc (arg ^. #witness)
+    <*> ( Map.unionWith (<>)
+            (voidSubexpressionTraces usedRowIndices voidId)
+            <$> argumentSubexpressionTraces ann lc arg mapping usedRowIndices
         )
   where
-    voidCase usedCases voidId =
+    voidSubexpressionTraces usedRowIds voidId =
       curryMap $
         Map.fromList
           [ ( (i, voidId),
@@ -191,7 +233,7 @@ argumentToTrace ann bitsPerByte lc arg = do
                 (mapping ^. #stepTypeIds . #voidT . #unOf)
                 (getDefaultAdvice mapping)
             )
-            | i <- Set.toList usedCases
+            | i <- Set.toList usedRowIds
           ]
 
     mapping = getMapping bitsPerByte lc
@@ -216,13 +258,25 @@ argumentSubexpressionTraces ::
   LC.Argument ->
   Mapping ->
   Set Case ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace))
+  Either
+    (ErrorMessage ann)
+    (Map (RowIndex Absolute)
+       (Map SubexpressionId SubexpressionTrace))
 argumentSubexpressionTraces ann lc arg mapping cases = do
   tables <- getLookupCaches ann lc arg
   Map.unionsWith (<>)
     <$> mapM
-      (caseArgumentSubexpressionTraces ann lc arg mapping tables)
-      (Set.toList cases)
+      (uncurry (caseArgumentSubexpressionTraces ann lc arg mapping tables))
+      [ (c, ri)
+        | c <- Set.toList cases,
+          ri <- Set.toList (getCaseRows lc c)
+      ]
+
+getCaseRows ::
+  LogicCircuit ->
+  Case ->
+  Set (RowIndex Absolute)
+getCaseRows = die "todo"
 
 caseArgumentSubexpressionTraces ::
   ann ->
@@ -231,17 +285,18 @@ caseArgumentSubexpressionTraces ::
   Mapping ->
   LookupCaches ->
   Case ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace))
-caseArgumentSubexpressionTraces ann lc arg mapping tables c =
+  RowIndex Absolute ->
+  Either (ErrorMessage ann) (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace))
+caseArgumentSubexpressionTraces ann lc arg mapping tables c ri =
   Map.unionWith (<>)
     <$> ( Map.unionsWith (<>)
             <$> mapM
-              (fmap (^. _1) . topLevelLogicConstraintSubexpressionTraces ann lc arg mapping tables c)
+              (fmap (^. _1) . topLevelLogicConstraintSubexpressionTraces ann lc arg mapping tables c ri)
               ((lc ^. #gateConstraints . #constraints) <&> snd)
         )
     <*> ( Map.unionsWith (<>)
             <$> mapM
-              (lookupArgumentSubexpressionTraces ann lc arg mapping tables c)
+              (lookupArgumentSubexpressionTraces ann lc arg mapping tables c ri)
               (Set.toList (lc ^. #lookupArguments . #getLookupArguments))
         )
 
@@ -263,15 +318,23 @@ topLevelLogicConstraintSubexpressionTraces ::
   Mapping ->
   LookupCaches ->
   Case ->
+  RowIndex Absolute ->
   LogicConstraint ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
-topLevelLogicConstraintSubexpressionTraces ann lc arg mapping caches c p = do
-  (m, sId, _) <- logicConstraintSubexpressionTraces ann lc arg mapping caches c p
-  OutputSubexpressionId sId' <- getAssertionSubexpressionId ann mapping (InputSubexpressionId sId)
+  Either
+    (ErrorMessage ann)
+    (Map (RowIndex Absolute)
+      (Map SubexpressionId SubexpressionTrace),
+      SubexpressionId,
+      Scalar)
+topLevelLogicConstraintSubexpressionTraces ann lc arg mapping caches c ri p = do
+  (m, sId, _) <-
+    logicConstraintSubexpressionTraces ann lc arg mapping caches c ri p
+  OutputSubexpressionId sId' <-
+    getAssertionSubexpressionId ann mapping (InputSubexpressionId sId)
   pure
     ( Map.unionWith (<>) m $
         Map.singleton
-          c
+          ri
           ( Map.singleton
               sId'
               ( SubexpressionTrace
@@ -291,9 +354,13 @@ logicConstraintSubexpressionTraces ::
   Mapping ->
   LookupCaches ->
   Case ->
+  RowIndex Absolute ->
   LogicConstraint ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
-logicConstraintSubexpressionTraces ann lc arg mapping tables c =
+  Either (ErrorMessage ann)
+    (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace),
+     SubexpressionId,
+     Scalar)
+logicConstraintSubexpressionTraces ann lc arg mapping tables c ri =
   \case
     LC.Atom (LC.Equals x y) -> do
       (m0, s0, x') <- term x
@@ -301,7 +368,7 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
       advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       s2 <- getOperationSubexpressionId ann mapping (Equals' s0 s1)
       let v = if x' == y' then one else zero
-          m2 = Map.singleton c (Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #equals . #unOf) advice))
+          m2 = Map.singleton ri (Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #equals . #unOf) advice))
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Atom (LC.LessThan x y) -> do
       (m0, s0, x') <- term x
@@ -309,13 +376,13 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
       advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       s2 <- getOperationSubexpressionId ann mapping (LessThan' s0 s1)
       let v = if x' < y' then one else zero
-          m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #lessThan . #unOf) advice)
+          m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #lessThan . #unOf) advice)
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Not p -> do
       (m0, s0, x') <- rec p
       s1 <- getOperationSubexpressionId ann mapping (Not' s0)
       let v = one Group.- x'
-          m1 = Map.singleton c $ Map.singleton s1 (SubexpressionTrace v (mapping ^. #stepTypeIds . #not . #unOf) defaultAdvice)
+          m1 = Map.singleton ri $ Map.singleton s1 (SubexpressionTrace v (mapping ^. #stepTypeIds . #not . #unOf) defaultAdvice)
       pure (Map.unionWith (<>) m0 m1, s1, v)
     t@(LC.And p q) -> do
       (m0, s0, x') <- rec p
@@ -323,13 +390,13 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
         then do
           s1 <- getConstraintSubexpressionId ann mapping q
           s2 <- getOperationSubexpressionId ann mapping (TimesAndShortCircuit' s0 s1)
-          let m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace zero (mapping ^. #stepTypeIds . #timesAndShortCircuit . #unOf) defaultAdvice)
+          let m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace zero (mapping ^. #stepTypeIds . #timesAndShortCircuit . #unOf) defaultAdvice)
           pure (Map.unionWith (<>) m0 m2, s2, zero)
         else do
           (m1, s1, y') <- rec q
           s2 <- withTrace t $ getOperationSubexpressionId ann mapping (TimesAnd' s0 s1)
           let v = x' Ring.* y'
-              m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #timesAnd . #unOf) defaultAdvice)
+              m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #timesAnd . #unOf) defaultAdvice)
           pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     t@(LC.Or p q) -> do
       (m0, s0, x') <- rec p
@@ -337,32 +404,32 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c =
         then do
           s1 <- getConstraintSubexpressionId ann mapping q
           s2 <- getOperationSubexpressionId ann mapping (OrShortCircuit' s0 s1)
-          let m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace one (mapping ^. #stepTypeIds . #orShortCircuit . #unOf) defaultAdvice)
+          let m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace one (mapping ^. #stepTypeIds . #orShortCircuit . #unOf) defaultAdvice)
           pure (Map.unionWith (<>) m0 m2, s2, one)
         else do
           (m1, s1, y') <- rec q
           s2 <- withTrace t (getOperationSubexpressionId ann mapping (Or' s0 s1))
           let v = (x' Group.+ y') Group.- (x' Ring.* y')
-              m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #or . #unOf) defaultAdvice)
+              m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #or . #unOf) defaultAdvice)
           pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Iff p q -> do
       (m0, s0, x') <- rec p
       (m1, s1, y') <- rec q
       s2 <- getOperationSubexpressionId ann mapping (Iff' s0 s1)
       let v = if x' == y' then one else zero
-          m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #iff . #unOf) defaultAdvice)
+          m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #iff . #unOf) defaultAdvice)
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Top -> do
       sId <- getConstantSubexpressionId ann mapping one
       stId <- getConstantStepTypeId ann mapping one
-      pure (Map.singleton c (Map.singleton sId (SubexpressionTrace one stId defaultAdvice)), sId, one)
+      pure (Map.singleton ri (Map.singleton sId (SubexpressionTrace one stId defaultAdvice)), sId, one)
     LC.Bottom -> do
       sId <- getConstantSubexpressionId ann mapping zero
       stId <- getConstantStepTypeId ann mapping zero
-      pure (Map.singleton c (Map.singleton sId (SubexpressionTrace zero stId defaultAdvice)), sId, zero)
+      pure (Map.singleton ri (Map.singleton sId (SubexpressionTrace zero stId defaultAdvice)), sId, zero)
   where
-    rec = logicConstraintSubexpressionTraces ann lc arg mapping tables c
-    term = logicTermSubexpressionTraces ann lc arg mapping tables c
+    rec = logicConstraintSubexpressionTraces ann lc arg mapping tables c ri
+    term = logicTermSubexpressionTraces ann lc arg mapping tables c ri
     defaultAdvice = getDefaultAdvice mapping
 
 withTrace :: Show a => a -> Either (ErrorMessage ann) b -> Either (ErrorMessage ann) b
@@ -589,16 +656,17 @@ logicTermSubexpressionTraces ::
   Mapping ->
   LookupCaches ->
   Case ->
+  (RowIndex Absolute) ->
   LC.Term ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
-logicTermSubexpressionTraces ann lc arg mapping tables c =
+  Either (ErrorMessage ann) (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
+logicTermSubexpressionTraces ann lc arg mapping tables c ri =
   \case
     LC.Plus x y -> do
       (m0, s0, x') <- rec x
       (m1, s1, y') <- rec y
       s2 <- getOperationSubexpressionId ann mapping (Plus' s0 s1)
       let v = x' Group.+ y'
-          m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #plus . #unOf) defaultAdvice)
+          m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #plus . #unOf) defaultAdvice)
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Times x y -> do
       (m0, s0, x') <- rec x
@@ -606,13 +674,13 @@ logicTermSubexpressionTraces ann lc arg mapping tables c =
         then do
           s1 <- getTermSubexpressionId ann mapping y
           s2 <- getOperationSubexpressionId ann mapping (TimesAndShortCircuit' s0 s1)
-          let m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace zero (mapping ^. #stepTypeIds . #timesAndShortCircuit . #unOf) defaultAdvice)
+          let m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace zero (mapping ^. #stepTypeIds . #timesAndShortCircuit . #unOf) defaultAdvice)
           pure (Map.unionWith (<>) m0 m2, s2, zero)
         else do
           (m1, s1, y') <- rec y
           s2 <- getOperationSubexpressionId ann mapping (TimesAnd' s0 s1)
           let v = x' Ring.* y'
-              m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #timesAnd . #unOf) defaultAdvice)
+              m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #timesAnd . #unOf) defaultAdvice)
           pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Max x y -> do
       (m0, s0, x') <- rec x
@@ -620,7 +688,7 @@ logicTermSubexpressionTraces ann lc arg mapping tables c =
       s2 <- getOperationSubexpressionId ann mapping (Max' s0 s1)
       advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       let v = x' `max` y'
-          m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #maxT . #unOf) advice)
+          m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #maxT . #unOf) advice)
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.IndLess x y -> do
       (m0, s0, x') <- rec x
@@ -628,25 +696,28 @@ logicTermSubexpressionTraces ann lc arg mapping tables c =
       s2 <- getOperationSubexpressionId ann mapping (LessThan' s0 s1)
       advice <- getByteDecomposition ann lc mapping (x' Group.- y')
       let v = x' `lessIndicator` y'
-          m2 = Map.singleton c $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #lessThan . #unOf) advice)
+          m2 = Map.singleton ri $ Map.singleton s2 (SubexpressionTrace v (mapping ^. #stepTypeIds . #lessThan . #unOf) advice)
       pure (Map.unionsWith (<>) [m0, m1, m2], s2, v)
     LC.Const x -> constant x
     LC.Var x -> var x
     LC.Lookup is o -> lkup is o
   where
-    rec = logicTermSubexpressionTraces ann lc arg mapping tables c
-    var = polyVarSubexpressionTraces ann numCases arg mapping c
-    lkup = lookupTermSubexpressionTraces ann lc arg mapping tables c
-    constant = constantSubexpressionTraces ann mapping c
+    rec = logicTermSubexpressionTraces ann lc arg mapping tables c ri
+    var = polyVarSubexpressionTraces ann numCases arg mapping c ri
+    lkup = lookupTermSubexpressionTraces ann lc arg mapping tables c ri
+    constant = constantSubexpressionTraces ann mapping ri
     defaultAdvice = getDefaultAdvice mapping
     numCases = NumberOfCases (lc ^. #rowCount . #getRowCount)
 
 constantSubexpressionTraces ::
   ann ->
   Mapping ->
-  Case ->
+  RowIndex Absolute ->
   Scalar ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
+  Either (ErrorMessage ann)
+    (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace),
+     SubexpressionId,
+     Scalar)
 constantSubexpressionTraces ann mapping c x = do
   st <- getConstantStepTypeId ann mapping x
   s <- getConstantSubexpressionId ann mapping x
@@ -660,21 +731,28 @@ polyVarSubexpressionTraces ::
   LC.Argument ->
   Mapping ->
   Case ->
+  RowIndex Absolute ->
   PolynomialVariable ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
-polyVarSubexpressionTraces ann numCases arg mapping c x =
+  Either (ErrorMessage ann)
+    (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace),
+     SubexpressionId,
+     Scalar)
+polyVarSubexpressionTraces ann numCases arg mapping c ri x =
   if x ^. #rowIndex == 0
-    then polyVarSameCaseSubexpressionTraces ann numCases arg mapping c x
-    else polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c x
+    then polyVarSameCaseSubexpressionTraces ann numCases arg mapping ri x
+    else polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x
 
 polyVarSameCaseSubexpressionTraces ::
   ann ->
   NumberOfCases ->
   LC.Argument ->
   Mapping ->
-  Case ->
+  RowIndex Absolute ->
   PolynomialVariable ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
+  Either (ErrorMessage ann)
+    (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace),
+     SubexpressionId,
+     Scalar)
 polyVarSameCaseSubexpressionTraces ann numCases arg mapping c x = do
   st <-
     maybe
@@ -695,25 +773,23 @@ polyVarValue ::
   ann ->
   NumberOfCases ->
   LC.Argument ->
-  Case ->
+  RowIndex Absolute ->
   PolynomialVariable ->
   Either (ErrorMessage ann) Scalar
-polyVarValue ann (NumberOfCases numCases) arg c v = do
+polyVarValue ann (NumberOfCases numCases) arg ri v = do
+  when
+    ((v ^. #rowIndex) /= (0 :: RowIndex Relative))
+    (Left (ErrorMessage ann "unsupported: non-zero relative offets in poly var values in trace types"))
   numCases' <-
     maybe
       (Left (ErrorMessage ann "number of cases exceeds max Int"))
       pure
       (integerToInt (scalarToInteger numCases))
-  ri <-
-    maybe
-      (Left (ErrorMessage ann "row index exceeds max Int"))
-      pure
-      (integerToInt (scalarToInteger (c ^. #unCase)))
   let ref =
         CellReference
           (v ^. #colIndex)
           ( RowIndex
-              ( (ri + (v ^. #rowIndex . #getRowIndex))
+              ( ((ri ^. #getRowIndex) + (v ^. #rowIndex . #getRowIndex))
                   `mod` numCases'
               )
           )
@@ -724,7 +800,7 @@ polyVarValue ann (NumberOfCases numCases) arg c v = do
         ( Left
             ( ErrorMessage
                 ann
-                ("variable not defined: " <> pack (show (c, v)))
+                ("variable not defined: " <> pack (show (ri, v)))
             )
         )
         pure
@@ -736,10 +812,15 @@ polyVarDifferentCaseSubexpressionTraces ::
   LC.Argument ->
   Mapping ->
   Case ->
+  RowIndex Absolute ->
   PolynomialVariable ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
-polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c x = do
-  (m0, _, _) <- constant c (rowIndexToScalar (x ^. #rowIndex))
+  Either (ErrorMessage ann)
+    (Map (RowIndex Absolute)
+      (Map SubexpressionId SubexpressionTrace),
+      SubexpressionId,
+      Scalar)
+polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x = do
+  (m0, _, _) <- constant ri (rowIndexToScalar (x ^. #rowIndex))
   st <-
     maybe
       (Left (ErrorMessage ann "step type id lookup failed"))
@@ -753,16 +834,17 @@ polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c x = do
       (Left (ErrorMessage ann "variable subexpression id lookup failed"))
       (pure . (^. #unOf))
       (Map.lookup x (mapping ^. #subexpressionIds . #variables))
-  v <- polyVarValue ann numCases arg c x
+  v <- polyVarValue ann numCases arg ri x
   (m2, _, _) <-
     polyVarSameCaseSubexpressionTraces
       ann
       numCases
       arg
       mapping
-      (Case a)
+      ri
       (PolynomialVariable (x ^. #colIndex) 0)
-  let m3 = Map.singleton c $ Map.singleton sId (SubexpressionTrace v st advice)
+  let m3 = Map.singleton ri $
+             Map.singleton sId (SubexpressionTrace v st advice)
   pure (Map.unionsWith (<>) [m0, m2, m3], sId, v)
   where
     constant = constantSubexpressionTraces ann mapping
@@ -774,7 +856,9 @@ polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c x = do
     a =
       fromMaybe
         (die "polyVarDifferentCaseSubexpressionTraces: offset row index mod row count out of range of scalar (this is a compiler bug")
-        (integerToScalar (scalarToInteger ((c ^. #unCase) Group.+ r) `mod` scalarToInteger n))
+        (integerToScalar
+          (scalarToInteger
+            ((c ^. #unCase) Group.+ r) `mod` scalarToInteger n))
     divZero = "polyVarDifferentCaseSubexpressionTraces: division by zero"
     d = (((c ^. #unCase) Group.+ r) Group.- a) Ring.* fromMaybe (die divZero) (inverseScalar n)
     specialAdvice = Map.fromList [(ai, a), (di, d)]
@@ -794,10 +878,15 @@ lookupTermSubexpressionTraces ::
   Mapping ->
   LookupCaches ->
   Case ->
+  RowIndex Absolute ->
   [(InputExpression LC.Term, LookupTableColumn)] ->
   LC.LookupTableOutputColumn ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace), SubexpressionId, Scalar)
-lookupTermSubexpressionTraces ann lc arg mapping tables c lookupArg outCol = do
+  Either (ErrorMessage ann)
+    (Map (RowIndex Absolute)
+      (Map SubexpressionId SubexpressionTrace),
+      SubexpressionId,
+      Scalar)
+lookupTermSubexpressionTraces ann lc arg mapping tables c ri lookupArg outCol = do
   inputs' <-
     Map.fromList
       . zip ((^. _2) <$> lookupArg)
@@ -865,10 +954,10 @@ lookupTermSubexpressionTraces ann lc arg mapping tables c lookupArg outCol = do
           (mapping ^. #subexpressionIds . #bareLookups)
       )
   let ms = inputs' <&> (^. _1)
-      m' = Map.singleton c $ Map.singleton sId (SubexpressionTrace v st defaultAdvice)
+      m' = Map.singleton ri $ Map.singleton sId (SubexpressionTrace v st defaultAdvice)
   pure (Map.unionWith (<>) m' (Map.unionsWith (<>) (Map.elems ms)), sId, v)
   where
-    term = logicTermSubexpressionTraces ann lc arg mapping tables c
+    term = logicTermSubexpressionTraces ann lc arg mapping tables c ri
     defaultAdvice = getDefaultAdvice mapping
 
 lookupArgumentSubexpressionTraces ::
@@ -878,24 +967,39 @@ lookupArgumentSubexpressionTraces ::
   Mapping ->
   LookupCaches ->
   Case ->
+  RowIndex Absolute ->
   LookupArgument LC.Term ->
-  Either (ErrorMessage ann) (Map Case (Map SubexpressionId SubexpressionTrace))
-lookupArgumentSubexpressionTraces ann _ _ _ _ _ _ =
+  Either
+    (ErrorMessage ann)
+    (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace))
+lookupArgumentSubexpressionTraces ann _ _ _ _ _ _ _ =
   Left (ErrorMessage ann "unsupported: lookup argument in logic circuit being translated to a trace type")
 
 logicCircuitStatementToTraceStatement ::
   ann ->
+  LogicCircuit ->
   LC.Statement ->
   Either (ErrorMessage ann) Statement
-logicCircuitStatementToTraceStatement ann stmt =
-  Statement <$> cellMapToCaseAndColMap ann (stmt ^. #unStatement)
+logicCircuitStatementToTraceStatement ann lc stmt = do
+  caseAndColMap <- cellMapToCaseAndColMap ann (stmt ^. #unStatement)
+  pure . Statement $ Map.fromList
+    [ ((ri, ci), x)
+      | ((c, ci), x) <- Map.toList caseAndColMap,
+        ri <- Set.toList $ getCaseRows lc c
+    ]
 
 logicCircuitWitnessToTraceWitness ::
   ann ->
+  LogicCircuit ->
   LC.Witness ->
   Either (ErrorMessage ann) Witness
-logicCircuitWitnessToTraceWitness ann witness =
-  Witness <$> cellMapToCaseAndColMap ann (witness ^. #unWitness)
+logicCircuitWitnessToTraceWitness ann lc witness = do
+  caseAndColMap <- cellMapToCaseAndColMap ann (witness ^. #unWitness)
+  pure . Witness $ Map.fromList
+    [ ((ri, ci), x)
+      | ((c, ci), x) <- Map.toList caseAndColMap,
+        ri <- Set.toList $ getCaseRows lc c
+    ]
 
 cellMapToCaseAndColMap ::
   ann ->
@@ -915,6 +1019,17 @@ cellMapToCaseAndColMap ann cellMap =
         | (CellReference col row, x) <- Map.toList cellMap
       ]
 
+-- TODO:
+--  [ ] extend row count to at least enough to fit all fixed tables;
+--  [ ] extend all fixed tables to row count using last row replication;
+--  [x] replicate circuit fixed values to translate from case indexing to
+--      row indexing
+--  This strategy won't work as outlined! It may break reliance of the
+--  logic circuit on the structure of the cases.
+--   * Disagree, because non-local references (references to a different
+--     row or case) rely entirely on lookups and not relative row referencing
+--  How will it play with argument generation?
+--   * Just simply replicate the last row of the instance / witness up to the row count?
 logicCircuitToTraceType ::
   BitsPerByte ->
   LogicCircuit ->
@@ -924,14 +1039,9 @@ logicCircuitToTraceType bitsPerByte c =
     colTypes'
     (c ^. #equalityConstrainableColumns)
     (c ^. #equalityConstraints)
-    ( FixedValues
-        . fmap
-          ( FixedColumn
-              . Map.mapKeys rowIndexToCase
-              . (^. #unFixedColumn)
-          )
-        $ (c ^. #fixedValues . #getFixedValues)
-    )
+    (caseFixedValuesToRowFixedValues
+      maxStepsPerCase
+      (rowIndexFixedValuesToCaseFixedValues (c ^. #fixedValues)))
     stepTypes
     subexprs
     (getSubexpressionLinksMap mapping)
@@ -942,7 +1052,7 @@ logicCircuitToTraceType bitsPerByte c =
     (mapping ^. #inputs)
     (mapping ^. #output)
     (NumberOfCases (rowCount ^. #getRowCount))
-    (rowCount * RowCount (maxStepsPerCase subexprs))
+    (rowCount * RowCount (maxStepsPerCase ^. #unMaxStepsPerCase))
   where
     rowCount = c ^. #rowCount
 
@@ -954,13 +1064,8 @@ logicCircuitToTraceType bitsPerByte c =
 
     subexprs = getSubexpressionIdSet (mapping ^. #subexpressionIds)
 
-    rowIndexToCase =
-      maybe
-        (die "Trace.FromLogicCircuit.logicCircuitToTraceType: could not convert row index to case")
-        Case
-        . integerToScalar
-        . intToInteger
-        . (^. #getRowIndex)
+    maxStepsPerCase = getMaxStepsPerCase subexprs
+
 
 -- TODO: let the columns be reused where possible
 data Mapping = Mapping
@@ -1908,6 +2013,7 @@ equalsStepType bitsPerByte c m =
 
     result :: Polynomial
     result = P.var' $ m ^. #output . #unOutputColumnIndex
+
 lessThanStepType bitsPerByte c m =
   Map.singleton
     (m ^. #stepTypeIds . #lessThan . #unOf)
@@ -1950,6 +2056,7 @@ lessThanStepType bitsPerByte c m =
 
     result :: Polynomial
     result = P.var' $ m ^. #output . #unOutputColumnIndex
+
 maxStepType bitsPerByte c m =
   Map.singleton
     (m ^. #stepTypeIds . #maxT . #unOf)
@@ -2046,10 +2153,14 @@ byteRangeAndTruthChecks m =
         | (byteCol, truthCol) <- m ^. #byteDecomposition . #bytes
       ]
 
+infiniteRowIndexList :: [RowIndex Absolute]
+infiniteRowIndexList =
+  RowIndex <$> [0..]
+
 truthTables ::
   RowCount ->
   Mapping ->
-  FixedValues Case
+  FixedValues (RowIndex Absolute)
 truthTables (RowCount n) m =
   FixedValues . Map.fromList $
     [ ( m ^. #truthTable . #byteRangeColumnIndex . #unByteRangeColumnIndex,
@@ -2067,28 +2178,19 @@ truthTables (RowCount n) m =
         (die "Trace.FromLogicCircuit.truthTables: row count out of range of Int")
         (integerToInt (scalarToInteger n))
 
-    byteRange, zeroIndicator :: FixedColumn Case
+    byteRange, zeroIndicator :: FixedColumn (RowIndex Absolute)
     byteRange =
       FixedColumn . Map.fromList
-        . zip cases
+        . zip infiniteRowIndexList
         $ fromMaybe (die "Trace.FromLogicCircuit.truthTables: byte value out of range of scalar (this is a compiler bug)")
           . integerToScalar
           . intToInteger
-          <$> ( [0 .. b - 1]
-                  <> replicate (n' - b) (b - 1)
-              )
+          <$> [0 .. b - 1]
+
     zeroIndicator =
       FixedColumn . Map.fromList
-        . zip cases
-        $ one : replicate (n' - 1) 0
-
-    cases :: [Case]
-    cases =
-      maybe
-        (die "Trace.FromLogicCircuit.truthTables: case number out of range of Int")
-        Case
-        . integerToScalar
-        <$> [0 .. scalarToInteger n]
+        . zip infiniteRowIndexList
+        $ one : replicate (b - 1) 0
 
 assertStepType ::
   Mapping ->
@@ -2328,11 +2430,12 @@ getResultExpressionIds m =
     ResultExpressionId . (^. #unOutputSubexpressionId)
       <$> Map.elems (m ^. #subexpressionIds . #assertions)
 
-maxStepsPerCase ::
+getMaxStepsPerCase ::
   Set SubexpressionId ->
-  Scalar
-maxStepsPerCase =
-  fromMaybe (die "maxStepsPerCase: out of range of scalar (this is a compiler bug)")
+  MaxStepsPerCase
+getMaxStepsPerCase =
+  MaxStepsPerCase
+    . fromMaybe (die "maxStepsPerCase: out of range of scalar (this is a compiler bug)")
     . integerToScalar
     . intToInteger
     . Set.size

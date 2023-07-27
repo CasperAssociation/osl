@@ -40,6 +40,7 @@ import Halo2.Types.LookupArguments (LookupArguments)
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialConstraints (PolynomialConstraints)
 import Halo2.Types.RowCount (RowCount)
+import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import Stark.Types.Scalar (Scalar)
 
 newtype InputColumnIndex = InputColumnIndex {unInputColumnIndex :: ColumnIndex}
@@ -58,7 +59,7 @@ data StepType = StepType
   { label :: Label,
     gateConstraints :: PolynomialConstraints,
     lookupArguments :: LookupArguments Polynomial,
-    fixedValues :: FixedValues Case
+    fixedValues :: FixedValues (RowIndex Absolute)
   }
   deriving (Generic, Show)
 
@@ -121,7 +122,7 @@ data TraceType = TraceType
     equalityConstrainableColumns :: EqualityConstrainableColumns,
     equalityConstraints :: EqualityConstraints,
     -- Fixed values inherited from the logic circuit
-    fixedValues :: FixedValues Case,
+    fixedValues :: FixedValues (RowIndex Absolute),
     stepTypes :: Map StepTypeId StepType,
     subexpressions :: Set SubexpressionId,
     links :: Map (StepTypeId, OutputSubexpressionId) [InputSubexpressionId],
@@ -141,16 +142,16 @@ newtype Case = Case {unCase :: Scalar}
   deriving stock (Eq, Ord, Generic)
   deriving newtype (Show, Group.C)
 
-newtype Statement = Statement {unStatement :: Map (Case, ColumnIndex) Scalar}
+newtype Statement = Statement {unStatement :: Map (RowIndex Absolute, ColumnIndex) Scalar}
   deriving (Generic, Show)
 
-newtype Witness = Witness {unWitness :: Map (Case, ColumnIndex) Scalar}
+newtype Witness = Witness {unWitness :: Map (RowIndex Absolute, ColumnIndex) Scalar}
   deriving (Generic, Show)
 
 data Trace = Trace
   { statement :: Statement,
     witness :: Witness,
-    subexpressions :: Map Case (Map SubexpressionId SubexpressionTrace)
+    subexpressions :: Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace)
   }
   deriving (Generic, Show)
 

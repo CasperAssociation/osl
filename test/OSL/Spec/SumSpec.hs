@@ -12,7 +12,7 @@ import OSL.ArgumentForm (getArgumentForm)
 import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
-import OSL.TranslatedEvaluation (evalTranslatedFormula10)
+import OSL.TranslatedEvaluation (evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula10)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.FileName (FileName (FileName))
@@ -72,6 +72,26 @@ exampleSpec c = do
       (getNamedTermUnsafe c "sumIs")
       (exampleUnsoundArgument c)
       `shouldBe` Right False
+
+  describe "sum spec's semantics are preserved in codegen stage 3" $ do
+    it "a positive case" $
+      evalTranslatedFormula3 c "sumIs" argumentForm (exampleArgument c)
+        `shouldBe` Right True
+
+  describe "sum spec's semantics are preserved in codegen stage 4" $ do
+    it "a positive case" $
+      evalTranslatedFormula4 c "sumIs" argumentForm (exampleArgument c)
+        `shouldBe` Right True
+
+  describe "sum spec's semantics are preserved in codegen stage 6" $ do
+    it "a positive case" $
+      evalTranslatedFormula6 (1 :: RowCount) c "sumIs" argumentForm (exampleArgument c)
+        `shouldBe` Right ()
+
+  describe "sum spec's semantics are preserved in codegen stage 7" $ do
+    it "a positive case" $
+      evalTranslatedFormula7 (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleArgument c)
+        `shouldBe` Right ()
 
   describe "sum spec's semantics are preserved in codegen stage 10" $ do
     it "a positive case" $
