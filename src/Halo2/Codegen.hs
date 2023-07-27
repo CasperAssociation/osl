@@ -463,6 +463,7 @@ getAddEqualityConstraintSource cs =
       )
     <> "]);"
 
+
 getAddFixedColumnSource :: ArithmeticCircuit -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
 getAddFixedColumnSource c ci xs
   | Map.keys xs == [0 .. RowIndex (nRows - 1)] =
