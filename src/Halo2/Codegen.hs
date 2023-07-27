@@ -7,12 +7,13 @@
 
 module Halo2.Codegen
   ( generateProject,
-    TargetDirectory (TargetDirectory)
-  ) where
+    TargetDirectory (TargetDirectory),
+  )
+where
 
 import Control.Lens ((^.))
-import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.FileEmbed (embedFile)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -24,10 +25,10 @@ import Halo2.CircuitEdits (getCircuitEdits)
 import Halo2.MungeLookupArguments (getColumnsOfType)
 import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddLookupTable, AddLookupArgument, EnableEquality, AddGate))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, AddLookupTable, EnableEquality))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
-import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
+import Halo2.Types.ColumnType (ColumnType (Advice, Fixed, Instance))
 import Halo2.Types.Exponent (Exponent)
 import Halo2.Types.InputExpression (InputExpression (InputExpression))
 import Halo2.Types.Label (Label)
@@ -38,7 +39,7 @@ import Halo2.Types.PolynomialVariable (PolynomialVariable (PolynomialVariable))
 import Halo2.Types.PowerProduct (PowerProduct)
 import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
-import Lib.Git (initDB, add)
+import Lib.Git (add, initDB)
 import Lib.Git.Type (makeConfig, runGit)
 import OSL.Types.ErrorMessage (ErrorMessage)
 import Stark.Types.Scalar (Scalar, scalarToInt)
@@ -63,66 +64,85 @@ generateProject td@(TargetDirectory targetDirectory) c = do
   runGit (makeConfig targetDirectory Nothing) $ do
     initDB False
     add $
-      (("./") <>) <$>
-        [ "LICENSE", "NOTICE", ".gitignore", "README.md",
-          "rust-toolchain.toml", "Cargo.toml", "Cargo.nix",
-          "Cargo.lock", "flake.nix", "flake.lock",
-          "src/lib.rs", "src/main.rs"
-        ]
+      (("./") <>)
+        <$> [ "LICENSE",
+              "NOTICE",
+              ".gitignore",
+              "README.md",
+              "rust-toolchain.toml",
+              "Cargo.toml",
+              "Cargo.nix",
+              "Cargo.lock",
+              "flake.nix",
+              "flake.lock",
+              "src/lib.rs",
+              "src/main.rs"
+            ]
 
 createLicenseFile :: TargetDirectory -> IO ()
 createLicenseFile =
-  writeStaticFile "LICENSE"
+  writeStaticFile
+    "LICENSE"
     $(embedFile "./halo2-template/LICENSE")
 
 createNoticeFile :: TargetDirectory -> IO ()
 createNoticeFile =
-  writeStaticFile "NOTICE"
+  writeStaticFile
+    "NOTICE"
     $(embedFile "./halo2-template/NOTICE")
 
 createGitignoreFile :: TargetDirectory -> IO ()
 createGitignoreFile =
-  writeStaticFile ".gitignore"
+  writeStaticFile
+    ".gitignore"
     $(embedFile "./halo2-template/.gitignore")
 
 createReadmeFile :: TargetDirectory -> IO ()
 createReadmeFile =
-  writeStaticFile "README.md"
+  writeStaticFile
+    "README.md"
     $(embedFile "./halo2-template/README.md")
 
 createRustToolchainTomlFile :: TargetDirectory -> IO ()
 createRustToolchainTomlFile =
-  writeStaticFile "rust-toolchain.toml"
+  writeStaticFile
+    "rust-toolchain.toml"
     $(embedFile "./halo2-template/rust-toolchain.toml")
 
 createCargoTomlFile :: TargetDirectory -> IO ()
 createCargoTomlFile =
-  writeStaticFile "Cargo.toml"
+  writeStaticFile
+    "Cargo.toml"
     $(embedFile "./halo2-template/Cargo.toml")
 
 createCargoNixFile :: TargetDirectory -> IO ()
 createCargoNixFile =
-  writeStaticFile "Cargo.nix"
+  writeStaticFile
+    "Cargo.nix"
     $(embedFile "./halo2-template/Cargo.nix")
 
 createCargoLockFile :: TargetDirectory -> IO ()
 createCargoLockFile =
-  writeStaticFile "Cargo.lock"
+  writeStaticFile
+    "Cargo.lock"
     $(embedFile "./halo2-template/Cargo.lock")
 
 createFlakeNixFile :: TargetDirectory -> IO ()
 createFlakeNixFile =
-  writeStaticFile "flake.nix"
+  writeStaticFile
+    "flake.nix"
     $(embedFile "./halo2-template/flake.nix")
 
 createFlakeLockFile :: TargetDirectory -> IO ()
 createFlakeLockFile =
-  writeStaticFile "flake.lock"
+  writeStaticFile
+    "flake.lock"
     $(embedFile "./halo2-template/flake.lock")
 
 createMainFile :: TargetDirectory -> IO ()
 createMainFile =
-  writeStaticFile "src/main.rs"
+  writeStaticFile
+    "src/main.rs"
     $(embedFile "./halo2-template/src/main.rs")
 
 createLibFile :: TargetDirectory -> ArithmeticCircuit -> IO ()
@@ -143,19 +163,21 @@ getLibSource c = do
           <> encodeUtf8 (pack (show (c ^. #rowCount . #getRowCount)))
           <> ";\n",
         interludeA,
-        BS.intercalate "\n"
-          (("    " <>) . getEditConfigureSource c <$> edits),
+        BS.intercalate
+          "\n"
+          (fmap ("    " <>) . filter (/= mempty) $ getEditConfigureSource c <$> edits),
         interludeB,
-        BS.intercalate "\n"
-          (("      " <>) . getEditSynthesizeSource c <$> edits),
+        BS.intercalate
+          "\n"
+          (fmap ("      " <>) . filter (/= mempty) $ getEditSynthesizeSource c <$> edits),
         postlude,
         entryPoint
       ]
   where
     prelude = $(embedFile "./halo2-template/src/prelude.rs")
 
-
-    interludeA = [r|
+    interludeA =
+      [r|
 #[derive(Clone)]
 pub struct MyCircuit<F> {
   advice_data: Option<HashMap<ColumnIndex, Vec<F>>>
@@ -178,8 +200,8 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
 
 |]
 
-
-    interludeB = [r|
+    interludeB =
+      [r|
     MyConfig {
       instance_columns: instance_cols,
       advice_columns: advice_cols,
@@ -206,14 +228,28 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
                   .unwrap();
               }
             },
-            None => () // this must be a fixed column
+            None => {
+              let col = config.fixed_columns.get(ci);
+              match col {
+                Some(col) => {
+                  for (ri, x) in xs.iter().enumerate() {
+                    region
+                      .assign_fixed(|| "", *col, ri, || Value::known(Assigned::from(x)))
+                      .unwrap();
+                  }
+                },
+                None => {
+                  die!("found witness data which does not correlate to a fixed or advice column");
+                }
+              }
+            }
           };
         }
       }
 |]
 
-
-    postlude = [r|
+    postlude =
+      [r|
       for (ci, xs) in &fixed_values {
         let col = config.fixed_columns.get(ci).expect(format!("Could not find column: {}", ci).as_str());
         for (ri, x) in xs.iter().enumerate() {
@@ -248,63 +284,79 @@ impl<F: PrimeField> Circuit<F> for MyCircuit<F> {
 
     entryPoint = $(embedFile "./halo2-template/src/entry-point.rs")
 
-
 getEditConfigureSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
 getEditConfigureSource c =
   \case
     AddColumn ci Advice ->
       "let c" <> f ci <> " = meta.advice_column();\n"
-        <> "advice_cols.insert(ColumnIndex {index:" <> f ci <> "}, c" <> f ci <> ");"
+        <> "advice_cols.insert(ColumnIndex {index:"
+        <> f ci
+        <> "}, c"
+        <> f ci
+        <> ");"
     AddColumn ci Instance ->
       "let c" <> f ci <> " = meta.instance_column();\n"
-        <> "instance_cols.insert(ColumnIndex {index:" <> f ci <> "}, c" <> f ci <> ");"
+        <> "instance_cols.insert(ColumnIndex {index:"
+        <> f ci
+        <> "}, c"
+        <> f ci
+        <> ");"
     AddColumn ci Fixed ->
       "let c" <> f ci <> " = meta.fixed_column();\n"
-        <> "fixed_cols.insert(ColumnIndex {index:" <> f ci <> "}, c" <> f ci <> ");"
+        <> "fixed_cols.insert(ColumnIndex {index:"
+        <> f ci
+        <> "}, c"
+        <> f ci
+        <> ");"
     EnableEquality ci ->
       "meta.enable_equality(c" <> f ci <> ");"
     AddGate l p ->
       getAddGateSource l p
     AddLookupTable l tab ->
-      let fixedCols = Set.map LookupTableColumn
-                      $ getColumnsOfType Fixed c
-          adviceCols = Set.map LookupTableColumn
-                       $ getColumnsOfType Advice c
+      let fixedCols =
+            Set.map LookupTableColumn $
+              getColumnsOfType Fixed c
+          adviceCols =
+            Set.map LookupTableColumn $
+              getColumnsOfType Advice c
           tabFixedCols = (`Set.member` fixedCols) `filter` tab
           tabAdviceCols = (`Set.member` adviceCols) `filter` tab
-      in "let " <> getTableName tab <> " = meta.create_dynamic_table(" <> f l <> ", "
-          <> getLookupTableColumnsSource tabFixedCols
-          <> ", " <> getLookupTableColumnsSource tabAdviceCols <> ");"
-          <> "\n        lookup_tables.push("
-          <> getTableName tab <> ".clone());"
+       in "let " <> getTableName tab <> " = meta.create_dynamic_table(" <> f l <> ", "
+            <> getLookupTableColumnsSource tabFixedCols
+            <> ", "
+            <> getLookupTableColumnsSource tabAdviceCols
+            <> ");"
+            <> "\n        lookup_tables.push("
+            <> getTableName tab
+            <> ".clone());"
     AddLookupArgument arg ->
       getAddLookupArgumentSource arg
     AddEqualityConstraint {} -> mempty
     AddFixedColumn {} -> mempty
-
 
 getEditSynthesizeSource :: ArithmeticCircuit -> CircuitEdit -> ByteString
 getEditSynthesizeSource c =
   \case
     AddColumn ci Fixed ->
       "let c" <> f ci <> ": Column<Any> = (*(config.fixed_columns.get(&ColumnIndex { index: "
-        <> f ci <> " }).unwrap())).into();"
+        <> f ci
+        <> " }).unwrap())).into();"
     AddColumn ci Advice ->
       "let c" <> f ci <> ": Column<Any> = (*(config.advice_columns.get(&ColumnIndex { index: "
-        <> f ci <> " }).unwrap())).into();"
+        <> f ci
+        <> " }).unwrap())).into();"
     AddColumn ci Instance ->
       "let c" <> f ci <> ": Column<Any> = (*(config.instance_columns.get(&ColumnIndex { index: "
-        <> f ci <> " }).unwrap())).into();"
+        <> f ci
+        <> " }).unwrap())).into();"
     AddEqualityConstraint eq ->
       getAddEqualityConstraintSource eq
     AddFixedColumn ci fvs ->
-      getAddFixedColumnSource nRows ci fvs
+      getAddFixedColumnSource c ci fvs
     EnableEquality {} -> mempty
     AddGate {} -> mempty
     AddLookupTable {} -> mempty
     AddLookupArgument {} -> mempty
-  where
-    nRows = scalarToInt $ c ^. #rowCount . #getRowCount
 
 f :: Show a => a -> ByteString
 f = encodeUtf8 . pack . show
@@ -321,28 +373,39 @@ getAddLookupArgumentSource arg =
   "meta.lookup_dynamic(&"
     <> getTableName (getLookupTable arg)
     <> ", |meta| {\n"
-    <> BS.intercalate "\n"
-         (("       " <>) . getColumnRotationSource
-           <$> Set.toList (getPolynomialVariables arg)) <> "\n"
+    <> BS.intercalate
+      "\n"
+      ( filter (/= mempty) $
+          ("       " <>) . getColumnRotationSource
+            <$> Set.toList (getPolynomialVariables arg)
+      )
+    <> "\n"
     <> "        (selector_all, vec!["
     <> mconcat
-         [ "            (" <> getPolySource p
-                     <> ", c" <> f c <> ".into()),"
-           | (InputExpression p, LookupTableColumn c)
-               <- arg ^. #tableMap
-         ]
+      [ "            (" <> getPolySource p
+          <> ", c"
+          <> f c
+          <> ".into()),"
+        | (InputExpression p, LookupTableColumn c) <-
+            arg ^. #tableMap
+      ]
     <> "        ])"
     <> "    });"
 
-
 getAddGateSource :: Label -> Polynomial -> ByteString
 getAddGateSource l p =
-  "meta.create_gate(" <>  f l <> ", |meta| {\n"
-    <> BS.intercalate "\n"
-         (("       " <>) . getColumnRotationSource
-           <$> Set.toList (getPolynomialVariables p)) <> "\n"
-    <> "        Constraints::with_selector(Expression::Constant(Field::ZERO), [\n"
-    <> "            Constraint::from(" <> getPolySource p <> ")\n"
+  "meta.create_gate(" <> f l <> ", |meta| {\n"
+    <> BS.intercalate
+      "\n"
+      ( filter (/= mempty) $
+          ("       " <>) . getColumnRotationSource
+            <$> Set.toList (getPolynomialVariables p)
+      )
+    <> "\n"
+    <> "        Constraints::with_selector(meta.query_selector(selector_all), [\n"
+    <> "            Constraint::from("
+    <> getPolySource p
+    <> ")\n"
     <> "        ])\n"
     <> "    });"
 
@@ -372,10 +435,12 @@ getPolyVarSource v =
   "r" <> f (v ^. #colIndex) <> "_" <> f (v ^. #rowIndex) <> ".clone()"
 
 getColumnRotationSource :: PolynomialVariable -> ByteString
-getColumnRotationSource (PolynomialVariable ci j) =
-  "let r" <> f ci <> "_" <> f j <>
-    " = meta.query_any(c" <> f ci <>
-    ", Rotation(" <> f j <> "));"
+getColumnRotationSource (PolynomialVariable ci 0) =
+  "let r" <> f ci <> "_0"
+    <> " = meta.query_any(c"
+    <> f ci
+    <> ", Rotation(0));"
+getColumnRotationSource _ = die "Halo2 codegen: cannot handle rotations (this is a compiler bug)"
 
 getLookupTableColumnsSource :: [LookupTableColumn] -> ByteString
 getLookupTableColumnsSource cs =
@@ -386,28 +451,34 @@ getLookupTableColumnsSource cs =
 getAddEqualityConstraintSource :: Set.Set CellReference -> ByteString
 getAddEqualityConstraintSource cs =
   "equality_constraints.push(vec!["
-    <> BS.intercalate ", "
-         ((\(CellReference (ColumnIndex ci) (RowIndex ri)) ->
-           "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
-             <> ", column: c" <> f ci <> " }")
-           <$> Set.toList cs)
+    <> BS.intercalate
+      ", "
+      ( ( \(CellReference (ColumnIndex ci) (RowIndex ri)) ->
+            "Cell { region_index: ri, row_offset: " <> encodeUtf8 (pack (show ri))
+              <> ", column: c"
+              <> f ci
+              <> " }"
+        )
+          <$> Set.toList cs
+      )
     <> "]);"
 
-
--- NOTE: this assumes that the row indices are contiguous starting at zero,
--- and will output the wrong answer if not.
-getAddFixedColumnSource :: Int -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
-getAddFixedColumnSource nRows ci xs
-  | Map.size xs == nRows =
+getAddFixedColumnSource :: ArithmeticCircuit -> ColumnIndex -> Map.Map (RowIndex Absolute) Scalar -> ByteString
+getAddFixedColumnSource c ci xs
+  | Map.keys xs == [0 .. RowIndex (nRows - 1)] =
     "fixed_values.insert(ColumnIndex {index:"
       <> encodeUtf8 (pack (show ci))
       <> "}, vec!["
-      <> BS.intercalate ","
-           ((<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
-             <$> Map.elems xs)
+      <> BS.intercalate
+        ","
+        ( (<> ")") . ("F::from(" <>) . encodeUtf8 . pack . show
+            <$> Map.elems xs
+        )
       <> "]);"
-  | otherwise = die $ "fixed column is of the wrong length (this is a compiler bug): " <> pack (show ci)
-       
+  | otherwise =
+    die "getAddFixedColumnSource: not enough rows in fixed column (this is a compiler bug)"
+  where
+    nRows = scalarToInt $ c ^. #rowCount . #getRowCount
 
 writeStaticFile :: FilePath -> ByteString -> TargetDirectory -> IO ()
 writeStaticFile filename contents (TargetDirectory targetDir) =

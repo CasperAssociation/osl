@@ -19,7 +19,7 @@ import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
 import OSL.Spec.Sudoku.Types (Cell (Cell), Col (Col), Digit (Digit), Problem (Problem, unProblem), Row (Row), Solution (Solution, unSolution), Square (Square), SquareCell (SquareCell), SudokuWitness (SudokuWitness), X (X), Y (Y))
-import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10)
+import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula10, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
@@ -169,7 +169,6 @@ exampleSpec c = do
     it "a negative case" $
       evalTranslatedFormula10 (81 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
         `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(21810,Just 1)] out of 22762")
-
 
 exampleArgument :: ValidContext 'Global ann -> Argument
 exampleArgument c =

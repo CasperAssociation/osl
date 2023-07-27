@@ -7,8 +7,8 @@
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
-
-{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-unused-local-binds -Wno-unused-matches #-} -- TODO: remove
+-- TODO: remove
+{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-unused-local-binds -Wno-unused-matches #-}
 
 module Trace.FromLogicCircuit
   ( logicCircuitToTraceType,
@@ -1232,7 +1232,7 @@ getMapping bitsPerByte c =
                 <*> replicateM
                   (getByteDecompositionLength bitsPerByte c)
                   ( (,) <$> (ByteColumnIndex <$> nextCol)
-                        <*> (TruthValueColumnIndex <$> nextCol)
+                      <*> (TruthValueColumnIndex <$> nextCol)
                   )
             )
         <*> ( TruthTableColumnIndices

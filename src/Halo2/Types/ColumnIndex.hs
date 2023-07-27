@@ -8,7 +8,7 @@ module Halo2.Types.ColumnIndex
   )
 where
 
-import Data.Aeson (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 import Halo2.Prelude
 
 newtype ColumnIndex = ColumnIndex {getColumnIndex :: Int}

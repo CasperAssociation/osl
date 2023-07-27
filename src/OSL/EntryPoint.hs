@@ -34,9 +34,9 @@ import OSL.Parse (parseContext)
 import OSL.Tokenize (tokenize)
 import OSL.Translate (translateToFormula)
 import OSL.TranslationContext (toLocalTranslationContext)
-import OSL.Types.Stages (Stages (Stages))
 import OSL.Types.FileName (FileName (FileName))
 import OSL.Types.OSL (Declaration (Defined), Name (Sym))
+import OSL.Types.Stages (Stages (Stages))
 import OSL.ValidContext (getDeclaration)
 import OSL.ValidateContext (validateContext)
 import Semicircuit.Gensyms (deBruijnToGensyms)
@@ -86,7 +86,7 @@ main = do
 
 newtype TargetName = TargetName String
 
-newtype ErrorMessage = ErrorMessage { unErrorMessage :: String }
+newtype ErrorMessage = ErrorMessage {unErrorMessage :: String}
 
 newtype SuccessfulOutput = SuccessfulOutput String
 
@@ -123,8 +123,14 @@ toCircuit ::
   RowCount ->
   Either ErrorMessage ArithmeticCircuit
 toCircuit fileName targetName source bitsPerByte rowCount = do
-  stages <- runCompilerStages fileName targetName source bitsPerByte
-              rowCount CompileToCircuit
+  stages <-
+    runCompilerStages
+      fileName
+      targetName
+      source
+      bitsPerByte
+      rowCount
+      CompileToCircuit
   case stages ^. #mungedCircuit of
     Just c -> pure c
     Nothing -> Left (ErrorMessage "no circuit produced")
@@ -158,9 +164,23 @@ runCompilerStages (FileName fileName) (TargetName targetName) (Source source) bi
           runStateT (translateToFormula gc lc targetTerm) mempty
       case compileToCircuit of
         DONTCompileToCircuit ->
-          pure $ Stages translated aux Nothing Nothing Nothing
-                   Nothing Nothing Nothing Nothing Nothing Nothing
-                   Nothing Nothing Nothing Nothing
+          pure $
+            Stages
+              translated
+              aux
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              Nothing
         CompileToCircuit -> do
           pnf <-
             mapLeft (ErrorMessage . ("Error converting to prenex normal form: " <>) . show) $
@@ -179,8 +199,9 @@ runCompilerStages (FileName fileName) (TargetName targetName) (Source source) bi
               circuitLayout = mappings traceType traceLayout
               circuit = traceTypeToArithmeticCircuit traceType traceLayout
           circuit' <-
-            mapLeft (ErrorMessage . ("Error removing lookup gates: " <>) . show)
-             (removeLookupGates circuit)
+            mapLeft
+              (ErrorMessage . ("Error removing lookup gates: " <>) . show)
+              (removeLookupGates circuit)
           let mungedCircuit = mungeLookupArguments circuit'
               circuitMetrics = getCircuitMetrics mungedCircuit
               traceTypeMetrics = getTraceTypeMetrics traceType

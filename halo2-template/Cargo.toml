@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+die = "0.2"
 ff = "0.13.0"
 derive_more = "0.99.16"
 halo2_proofs = { git = "https://github.com/Polytopoi/halo2.git", rev = "eb38ed04a1c99e6c8153b921aa18c62d332b38ed", features = [ "unstable-dynamic-lookups" ] }

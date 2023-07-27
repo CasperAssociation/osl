@@ -12,6 +12,7 @@ import Data.List (find)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Die (die)
+import Halo2.ProverClient (Port (Port))
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.RowCount (RowCount)
 import OSL.ArgumentForm (getArgumentForm)
@@ -19,7 +20,7 @@ import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
 import OSL.Spec.Sudoku.Types (Cell (Cell), Col (Col), Digit (Digit), Problem (Problem, unProblem), Row (Row), Solution (Solution, unSolution), SudokuWitness (SudokuWitness))
-import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10, evalTranslatedFormula11)
+import OSL.TranslatedEvaluation (evalTranslatedFormula1, evalTranslatedFormula10, evalTranslatedFormula11, evalTranslatedFormula2, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula5, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
@@ -172,15 +173,12 @@ exampleSpec c = do
 
   describe "Sudoku spec's semantics are preserved in codegen stage 11" $ do
     it "a positive case" $ do
-      result <- runExceptT $ evalTranslatedFormula11 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleArgument c)
+      result <- runExceptT $ evalTranslatedFormula11 "./mock-prover-1" (Port 1787) (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleArgument c)
       result `shouldBe` Right ()
--- TODO: enable the negative case
--- 
---     it "a negative case" $ do
---       result <- liftIO . runExceptT $ evalTranslatedFormula11 (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
---       result `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(104,Just 1)] out of 1531")
 
-
+    it "a negative case" $ do
+      result <- liftIO . runExceptT $ evalTranslatedFormula11 "./mock-prover-2" (Port 1788) (9 :: RowCount) (8 :: BitsPerByte) c "problemIsSolvable" argumentForm (exampleUnsoundArgument c)
+      result `shouldBe` Left (ErrorMessage Nothing "mockProve: mock prover returned error: ConnectionError (HttpExceptionRequest Request {\n  host                 = \"127.0.0.1\"\n  port                 = 1788\n  secure               = False\n  requestHeaders       = [(\"Accept\",\"text/plain;charset=utf-8\"),(\"Content-Type\",\"application/json;charset=utf-8\")]\n  path                 = \"/mock_prove\"\n  queryString          = \"\"\n  method               = \"POST\"\n  proxy                = Nothing\n  rawBody              = False\n  redirectCount        = 10\n  responseTimeout      = ResponseTimeoutDefault\n  requestVersion       = HTTP/1.1\n  proxySecureMode      = ProxySecureWithConnect\n}\n NoResponseDataReceived)")
 
 exampleArgument :: ValidContext 'Global ann -> Argument
 exampleArgument c =

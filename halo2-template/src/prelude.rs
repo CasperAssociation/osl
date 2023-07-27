@@ -1,3 +1,4 @@
+use die::die;
 use ff::{FromUniformBytes, PrimeField};
 use halo2_proofs::{
   arithmetic::Field,
@@ -8,8 +9,10 @@ use halo2_proofs::{
 };
 use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
+use std::env;
 use std::hash::Hash;
 use std::option::{Option, Option::None};
+use std::str::FromStr;
 use str;
 use serde::{Serialize, Deserialize};
 use warp::Filter;

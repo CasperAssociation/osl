@@ -3,20 +3,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Halo2.CircuitEdits
-  ( getCircuitEdits, getEqualityConstraintsEdits
-  ) where
+  ( getCircuitEdits,
+    getEqualityConstraintsEdits,
+  )
+where
 
 import Control.Arrow (second)
 import Control.Lens ((^.))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Halo2.Types.Circuit (ArithmeticCircuit)
-import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, EnableEquality, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, AddLookupTable))
+import Halo2.Types.CircuitEdit (CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, AddLookupTable, EnableEquality))
 import Halo2.Types.ColumnIndex (ColumnIndex (ColumnIndex))
 import Halo2.Types.ColumnType (ColumnType (Fixed))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
-import Halo2.Types.EqualityConstraints (EqualityConstraints)
 import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns (EqualityConstrainableColumns))
+import Halo2.Types.EqualityConstraints (EqualityConstraints)
 import Halo2.Types.FixedValues (FixedValues)
 import Halo2.Types.Label (Label (Label))
 import Halo2.Types.PolynomialConstraints (PolynomialConstraints (PolynomialConstraints))
@@ -27,21 +29,27 @@ import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 -- into the given circuit.
 getCircuitEdits :: ArithmeticCircuit -> Either (ErrorMessage ()) [CircuitEdit]
 getCircuitEdits c =
-  mconcat <$> sequence
-    [ getColumnTypeEdits (c ^. #columnTypes),
-      pure $ getEqualityConstrainableColumnsEdits (c ^. #equalityConstrainableColumns),
-      pure $ getGateConstraintEdits (c ^. #gateConstraints),
-      pure $ getFixedColumnsEdits (c ^. #columnTypes) (c ^. #fixedValues),
-      pure $ uncurry AddLookupTable <$>
-        zip (Label . ("tab_" <>) . show <$> [0 :: Int ..])
-          (Set.toList
-            (Set.map
-              (fmap snd . (^. #tableMap))
-              (c ^. #lookupArguments . #getLookupArguments))),
-      pure $ AddLookupArgument <$>
-        Set.toList (c ^. #lookupArguments . #getLookupArguments),
-      pure $ getEqualityConstraintsEdits (c ^. #equalityConstraints)
-    ]
+  mconcat
+    <$> sequence
+      [ getColumnTypeEdits (c ^. #columnTypes),
+        pure $ getEqualityConstrainableColumnsEdits (c ^. #equalityConstrainableColumns),
+        pure $ getGateConstraintEdits (c ^. #gateConstraints),
+        pure $ getFixedColumnsEdits (c ^. #columnTypes) (c ^. #fixedValues),
+        pure $
+          uncurry AddLookupTable
+            <$> zip
+              (Label . ("tab_" <>) . show <$> [0 :: Int ..])
+              ( Set.toList
+                  ( Set.map
+                      (fmap snd . (^. #tableMap))
+                      (c ^. #lookupArguments . #getLookupArguments)
+                  )
+              ),
+        pure $
+          AddLookupArgument
+            <$> Set.toList (c ^. #lookupArguments . #getLookupArguments),
+        pure $ getEqualityConstraintsEdits (c ^. #equalityConstraints)
+      ]
 
 getColumnTypeEdits :: ColumnTypes -> Either (ErrorMessage ()) [CircuitEdit]
 getColumnTypeEdits (ColumnTypes colTypes) =
@@ -66,9 +74,11 @@ getEqualityConstraintsEdits = fmap (AddEqualityConstraint . (^. #getEqualityCons
 
 getFixedColumnsEdits :: ColumnTypes -> FixedValues (RowIndex Absolute) -> [CircuitEdit]
 getFixedColumnsEdits cts =
-  fmap (uncurry AddFixedColumn
-    . second (^. #unFixedColumn))
+  fmap
+    ( uncurry AddFixedColumn
+        . second (^. #unFixedColumn)
+    )
     . Map.toList
     -- TODO: remove the Map.intersection; there should be no fixed values for non-fixed cols
-    . (`Map.intersection` Map.filter (== Fixed) (cts ^. #getColumnTypes) )
+    . (`Map.intersection` Map.filter (== Fixed) (cts ^. #getColumnTypes))
     . (^. #getFixedValues)

@@ -1,8 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 
 module Halo2.Types.CircuitEdit
-  ( CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, AddLookupTable, EnableEquality)
-  ) where
+  ( CircuitEdit (AddColumn, AddEqualityConstraint, AddFixedColumn, AddGate, AddLookupArgument, AddLookupTable, EnableEquality),
+  )
+where
 
 import Data.Map (Map)
 import Data.Set (Set)
@@ -16,8 +17,8 @@ import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import Stark.Types.Scalar (Scalar)
 
-data CircuitEdit =
-    AddColumn ColumnIndex ColumnType
+data CircuitEdit
+  = AddColumn ColumnIndex ColumnType
   | EnableEquality ColumnIndex
   | AddGate Label Polynomial
   | AddLookupTable Label [LookupTableColumn]

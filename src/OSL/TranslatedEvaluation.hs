@@ -20,13 +20,14 @@ import Control.Lens ((^.))
 import Control.Monad.Trans.Except (ExceptT, except, withExceptT)
 import Data.Either.Extra (mapLeft)
 import Halo2.Circuit (HasEvaluate (evaluate))
-import qualified Halo2.Types.Argument as C
-import Halo2.MungeLookupArguments (mungeLookupArguments, mungeArgument)
-import Halo2.ProverClient (mockProve)
+import Halo2.MungeLookupArguments (mungeArgument, mungeLookupArguments)
+import Halo2.ProverClient (Port, mockProve)
 import Halo2.RemoveLookupGates (removeLookupGates, removeLookupGatesArgumentConversion)
+import qualified Halo2.Types.Argument as C
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.Circuit (LogicCircuit)
 import Halo2.Types.RowCount (RowCount)
+import Halo2.Types.TargetDirectory (TargetDirectory)
 import OSL.Argument (toSigma11Argument)
 import qualified OSL.Sigma11 as S11
 import OSL.Term (dropTermAnnotations)
@@ -442,9 +443,11 @@ evalTranslatedFormula10 rowCount bitsPerByte c name argumentForm argument = do
     )
     (Halo2.Circuit.evaluate () arg'' ac'')
 
--- Eleventh codegen pass: Rust 
+-- Eleventh codegen pass: Rust
 evalTranslatedFormula11 ::
   Show ann =>
+  TargetDirectory ->
+  Port ->
   RowCount ->
   BitsPerByte ->
   ValidContext t ann ->
@@ -452,39 +455,43 @@ evalTranslatedFormula11 ::
   ArgumentForm ->
   Argument ->
   ExceptT (ErrorMessage (Maybe ann)) IO ()
-evalTranslatedFormula11 rowCount bitsPerByte c name argumentForm argument = do
+evalTranslatedFormula11 target port rowCount bitsPerByte c name argumentForm argument = do
   (logic, lcArg) <- except $ toLogicCircuit rowCount c name argumentForm argument
   let tt = logicCircuitToTraceType bitsPerByte logic
       lcM = getMapping bitsPerByte logic
       ac = traceTypeToArithmeticCircuit tt lcM
-  ac' <- except $
-    mapLeft
-      ( \(ErrorMessage () msg) ->
-          ErrorMessage Nothing ("removeLookupGates: " <> msg)
-      )
-      (removeLookupGates ac)
+  ac' <-
+    except $
+      mapLeft
+        ( \(ErrorMessage () msg) ->
+            ErrorMessage Nothing ("removeLookupGates: " <> msg)
+        )
+        (removeLookupGates ac)
   let ac'' = mungeLookupArguments ac'
-  t <- except $
-    mapLeft
-      ( \(ErrorMessage ann msg) ->
-          ErrorMessage ann ("argumentToTrace: " <> msg)
-      )
-      (argumentToTrace Nothing bitsPerByte logic lcArg)
-  arg <- except $
-    mapLeft
-      ( \(ErrorMessage ann msg) ->
-          ErrorMessage ann ("traceToArgument: " <> msg)
-      )
-      (traceToArgument Nothing tt lcM t)
+  t <-
+    except $
+      mapLeft
+        ( \(ErrorMessage ann msg) ->
+            ErrorMessage ann ("argumentToTrace: " <> msg)
+        )
+        (argumentToTrace Nothing bitsPerByte logic lcArg)
+  arg <-
+    except $
+      mapLeft
+        ( \(ErrorMessage ann msg) ->
+            ErrorMessage ann ("traceToArgument: " <> msg)
+        )
+        (traceToArgument Nothing tt lcM t)
   let arg' = removeLookupGatesArgumentConversion ac arg
-  arg'' <- except $
-    mapLeft
-      ( \(ErrorMessage () msg) ->
-          ErrorMessage Nothing ("mungeArgument: " <> msg)
-      )
-      (mungeArgument ac' arg')
+  arg'' <-
+    except $
+      mapLeft
+        ( \(ErrorMessage () msg) ->
+            ErrorMessage Nothing ("mungeArgument: " <> msg)
+        )
+        (mungeArgument ac' arg')
   withExceptT
     ( \(ErrorMessage () msg) ->
         ErrorMessage Nothing ("mockProve: " <> msg)
     )
-    (mockProve ac'' arg'' "./mock-prover")
+    (mockProve ac'' arg'' target port)

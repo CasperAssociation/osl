@@ -36,7 +36,7 @@ import Cast (intToInteger, integerToInt)
 import Control.Applicative (liftA2)
 import Control.Arrow (first)
 import Control.Lens ((<&>))
-import Control.Monad.Extra (allM, forM_, andM, when, (&&^), (||^), unless, void)
+import Control.Monad.Extra (allM, andM, forM_, unless, void, when, (&&^), (||^))
 import Data.Bool (bool)
 import Data.Either.Extra (mapLeft)
 import qualified Data.Map as Map
@@ -532,50 +532,68 @@ instance HasEvaluate (RowCount, LogicConstraint) (Map (RowIndex 'Absolute) (Mayb
 instance HasEvaluate (Map ColumnIndex FixedBound) () where
   evaluate ann arg bs =
     if and
-        [ min (scalarToInteger x) (scalarToInteger (Group.negate x))
-            < b ^. #unFixedBound
-          | (ci, b) <- Map.toList bs,
-            x <-
-              Map.elems
-                ( Map.filterWithKey
-                    (\k _ -> k ^. #colIndex == ci)
-                    (getCellMap arg)
-                )
-        ]
+      [ min (scalarToInteger x) (scalarToInteger (Group.negate x))
+          < b ^. #unFixedBound
+        | (ci, b) <- Map.toList bs,
+          x <-
+            Map.elems
+              ( Map.filterWithKey
+                  (\k _ -> k ^. #colIndex == ci)
+                  (getCellMap arg)
+              )
+      ]
       then pure ()
       else Left (ErrorMessage ann "fixed bound not satisfied")
 
 instance HasEvaluate (RowCount, LogicConstraints) () where
   evaluate ann arg (rc, LogicConstraints cs bs) = do
     evaluate ann arg bs
-    forM_ cs
+    forM_
+      cs
       ( \(lbl, c) -> do
           r <- evaluate ann arg (rc, c)
-          unless (r == (Map.fromList ((,Just True) <$> Set.toList allRows)))
-            (Left
-              (ErrorMessage ann
-                (pack (show lbl) <> ": not satisfied on the following rows: "
-                  <> pack (show (Map.toList (Map.filter (/= Just True) r))))))
+          unless
+            (r == (Map.fromList ((,Just True) <$> Set.toList allRows)))
+            ( Left
+                ( ErrorMessage
+                    ann
+                    ( pack (show lbl) <> ": not satisfied on the following rows: "
+                        <> pack (show (Map.toList (Map.filter (/= Just True) r)))
+                    )
+                )
+            )
       )
     where
       allRows = getRowSet rc Nothing
 
 instance HasEvaluate (RowCount, PolynomialConstraints) () where
   evaluate ann arg (rc, PolynomialConstraints polys degreeBound) =
-    forM_ polys
+    forM_
+      polys
       ( \(lbl, poly) -> do
-          when (degree poly > degreeBound ^. #getPolynomialDegreeBound)
-            (Left
-              (ErrorMessage ann
-                ("gate constraint exceeds polynomial degree bound: "
-                  <> pack (show (lbl, poly)))))
+          when
+            (degree poly > degreeBound ^. #getPolynomialDegreeBound)
+            ( Left
+                ( ErrorMessage
+                    ann
+                    ( "gate constraint exceeds polynomial degree bound: "
+                        <> pack (show (lbl, poly))
+                    )
+                )
+            )
           r <- evaluate ann arg (rc, poly)
-          unless (all (== Just zero) r)
-            (Left
-              (ErrorMessage ann
-                (pack (show lbl) <> ": not satisfied on the following rows: "
-                  <> pack (show (Map.toList (Map.filter (/= Just zero) r)))
-                  <> " out of " <> pack (show (Map.size r)))))
+          unless
+            (all (== Just zero) r)
+            ( Left
+                ( ErrorMessage
+                    ann
+                    ( pack (show lbl) <> ": not satisfied on the following rows: "
+                        <> pack (show (Map.toList (Map.filter (/= Just zero) r)))
+                        <> " out of "
+                        <> pack (show (Map.size r))
+                    )
+                )
+            )
       )
 
 instance
@@ -605,22 +623,31 @@ instance
     let rowSet' =
           Set.fromList . fmap (^. #rowIndex) . Map.keys $
             results
-    unless (rowSet' == rowSet)
-      (Left
-        (ErrorMessage ann
-          (pack (show lbl) <> " (lookup argument): not satisfied: \n"
-             <> pack
-                  (show
-                     (rowSet' `Set.difference` rowSet,
-                       Set.size rowSet,
-                       Set.size rowSet',
-                       (\ri ->
-                           ( ri,
-                             Map.filterWithKey (\k -> const (ri == k ^. #rowIndex)) cellMap,
-                             first (Map.lookup ri) <$> inputs
-                           ) )
-                         <$> listToMaybe (Set.toList (rowSet `Set.difference` rowSet'))))
-             <> "\n" <> pack (show lookupTbl))))
+    unless
+      (rowSet' == rowSet)
+      ( Left
+          ( ErrorMessage
+              ann
+              ( pack (show lbl) <> " (lookup argument): not satisfied: \n"
+                  <> pack
+                    ( show
+                        ( rowSet' `Set.difference` rowSet,
+                          Set.size rowSet,
+                          Set.size rowSet',
+                          ( \ri ->
+                              ( ri,
+                                Map.filterWithKey (\k -> const (ri == k ^. #rowIndex)) cellMap,
+                                first (Map.lookup ri) <$> inputs
+                              )
+                          )
+                            <$> listToMaybe (Set.toList (rowSet `Set.difference` rowSet'))
+                        )
+                    )
+                  <> "\n"
+                  <> pack (show lookupTbl)
+              )
+          )
+      )
 
 instance
   HasEvaluate (RowCount, LookupArgument a) () =>
@@ -634,27 +661,28 @@ instance
   HasEvaluate (Circuit a b) ()
   where
   evaluate ann arg c =
-    void $ sequence
-      [ evaluate ann arg (c ^. #columnTypes),
-        evaluate ann arg (c ^. #rowCount),
-        evaluate ann arg (c ^. #rowCount, c ^. #gateConstraints),
-        evaluate ann arg (c ^. #rowCount, c ^. #lookupArguments),
-        evaluate
-          ann
-          arg
-          ( c ^. #equalityConstrainableColumns,
-            c ^. #equalityConstraints
-          ),
-        evaluate ann arg (c ^. #fixedValues)
-      ]
+    void $
+      sequence
+        [ evaluate ann arg (c ^. #columnTypes),
+          evaluate ann arg (c ^. #rowCount),
+          evaluate ann arg (c ^. #rowCount, c ^. #gateConstraints),
+          evaluate ann arg (c ^. #rowCount, c ^. #lookupArguments),
+          evaluate
+            ann
+            arg
+            ( c ^. #equalityConstrainableColumns,
+              c ^. #equalityConstraints
+            ),
+          evaluate ann arg (c ^. #fixedValues)
+        ]
 
 instance HasEvaluate ColumnTypes () where
   evaluate ann arg (ColumnTypes m) =
     if getColumns (arg ^. #statement . #unStatement)
-        == Map.keysSet (Map.filter (== Instance) m)
-        && getColumns (arg ^. #witness . #unWitness)
-          == Map.keysSet (Map.filter (== Advice) m)
-            `Set.union` Map.keysSet (Map.filter (== Fixed) m)
+      == Map.keysSet (Map.filter (== Instance) m)
+      && getColumns (arg ^. #witness . #unWitness)
+        == Map.keysSet (Map.filter (== Advice) m)
+          `Set.union` Map.keysSet (Map.filter (== Fixed) m)
       then pure ()
       else Left (ErrorMessage ann "column types are not satisfied by argument")
 
@@ -662,11 +690,12 @@ instance HasEvaluate (FixedValues (RowIndex Absolute)) () where
   evaluate ann arg fvs =
     unless
       (m `Map.isSubmapOf` w)
-      (Left . ErrorMessage ann
-        $ "correct fixed values need to be present in witness; missing: " <>
-           pack (show (take 1 (Map.toList (Map.differenceWith (\x y -> if x == y then Nothing else Just x) m w)))) <>
-           " and instead seeing: " <>
-           pack (show (take 1 (Map.toList (Map.differenceWith (\x y -> if x == y then Nothing else Just y) m w)))))
+      ( Left . ErrorMessage ann $
+          "correct fixed values need to be present in witness; missing: "
+            <> pack (show (take 1 (Map.toList (Map.differenceWith (\x y -> if x == y then Nothing else Just x) m w))))
+            <> " and instead seeing: "
+            <> pack (show (take 1 (Map.toList (Map.differenceWith (\x y -> if x == y then Nothing else Just y) m w))))
+      )
     where
       m = fixedValuesToCellMap fvs
       w = arg ^. #witness . #unWitness
@@ -681,7 +710,8 @@ fixedValuesToCellMap (FixedValues m) =
 
 instance HasEvaluate (EqualityConstrainableColumns, EqualityConstraints) () where
   evaluate ann _ (eqcs, eqs) =
-    unless (equalityConstraintsMatchEqualityConstrainableColumns eqcs eqs)
+    unless
+      (equalityConstraintsMatchEqualityConstrainableColumns eqcs eqs)
       (Left (ErrorMessage ann "equality constraints do not match equality constrainable columns"))
 
 equalityConstraintsMatchEqualityConstrainableColumns ::
@@ -699,8 +729,9 @@ equalityConstraintsMatchEqualityConstrainableColumns
 instance HasEvaluate RowCount () where
   evaluate ann arg (RowCount n) =
     unless
-      (f (arg ^. #statement . #unStatement)
-        && f (arg ^. #witness . #unWitness))
+      ( f (arg ^. #statement . #unStatement)
+          && f (arg ^. #witness . #unWitness)
+      )
       (Left (ErrorMessage ann "argument does not have correct row count"))
     where
       f m =

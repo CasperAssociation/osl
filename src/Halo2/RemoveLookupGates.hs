@@ -22,19 +22,16 @@
 --
 -- Instances and witnesses are compiled into the instances and witnesses for the new
 -- circuit by adding zeroes in the new dummy row.
-
-
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-
 module Halo2.RemoveLookupGates
   ( removeLookupGates,
-    removeLookupGatesArgumentConversion
-  ) where
-
+    removeLookupGatesArgumentConversion,
+  )
+where
 
 import Cast (integerToInt)
 import Control.Arrow (first, second)
@@ -48,13 +45,13 @@ import Halo2.Circuit (getPolynomialVariables)
 import qualified Halo2.Polynomial as P
 import Halo2.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import Halo2.Types.CellReference (CellReference (CellReference))
-import Halo2.Types.Circuit (Circuit (Circuit), ArithmeticCircuit)
+import Halo2.Types.Circuit (ArithmeticCircuit, Circuit (Circuit))
 import Halo2.Types.ColumnIndex (ColumnIndex)
-import Halo2.Types.ColumnType (ColumnType (Advice, Instance, Fixed))
+import Halo2.Types.ColumnType (ColumnType (Advice, Fixed, Instance))
 import Halo2.Types.ColumnTypes (ColumnTypes (ColumnTypes))
-import Halo2.Types.EqualityConstraints (EqualityConstraints (EqualityConstraints))
-import Halo2.Types.EqualityConstraint (EqualityConstraint (EqualityConstraint))
 import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns (EqualityConstrainableColumns))
+import Halo2.Types.EqualityConstraint (EqualityConstraint (EqualityConstraint))
+import Halo2.Types.EqualityConstraints (EqualityConstraints (EqualityConstraints))
 import Halo2.Types.FixedColumn (FixedColumn (FixedColumn))
 import Halo2.Types.FixedValues (FixedValues (FixedValues))
 import Halo2.Types.InputExpression (InputExpression (InputExpression))
@@ -65,27 +62,23 @@ import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialConstraints (PolynomialConstraints (PolynomialConstraints))
 import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
-import Stark.Types.Scalar (one, zero, scalarToInteger)
+import Stark.Types.Scalar (one, scalarToInteger, zero)
 
+newtype DummyRowIndex = DummyRowIndex {unDummyRowIndex :: RowIndex Absolute}
+  deriving (Generic)
 
-newtype DummyRowIndex = DummyRowIndex { unDummyRowIndex :: RowIndex Absolute }
-  deriving Generic
-
-
-newtype DummyRowIndicatorColumnIndex =
-  DummyRowIndicatorColumnIndex
-    { unDummyRowIndicatorColumnIndex :: ColumnIndex }
-  deriving Generic
-
+newtype DummyRowIndicatorColumnIndex = DummyRowIndicatorColumnIndex
+  {unDummyRowIndicatorColumnIndex :: ColumnIndex}
+  deriving (Generic)
 
 getDummyRowIndex :: ArithmeticCircuit -> DummyRowIndex
 getDummyRowIndex =
   maybe
     (die "getDummyRowIndex: row index out of range of int")
     (DummyRowIndex . RowIndex)
-    . integerToInt . scalarToInteger
+    . integerToInt
+    . scalarToInteger
     . (^. #rowCount . #getRowCount)
-
 
 getDummyRowIndicatorColumnIndex ::
   ArithmeticCircuit ->
@@ -93,40 +86,38 @@ getDummyRowIndicatorColumnIndex ::
 getDummyRowIndicatorColumnIndex =
   maybe
     (DummyRowIndicatorColumnIndex 0)
-    (DummyRowIndicatorColumnIndex . (+1) . fst)
+    (DummyRowIndicatorColumnIndex . (+ 1) . fst)
     . Map.lookupMax
     . (^. #columnTypes . #getColumnTypes)
-
 
 removeLookupGates ::
   ArithmeticCircuit ->
   Either (ErrorMessage ()) ArithmeticCircuit
 removeLookupGates c = do
   checkVariableRowOffsetsAreZero c
-  pure $ Circuit
-    ((c ^. #columnTypes) <> ColumnTypes (Map.singleton (dci ^. #unDummyRowIndicatorColumnIndex) Advice))
-    (EqualityConstrainableColumns (Map.keysSet (c ^. #columnTypes . #getColumnTypes)))
-    (restrictGateConstraintsToNonDummyRows dci (c ^. #gateConstraints))
-    (removeLookupArgumentsGates dci (c ^. #lookupArguments))
-    ((c ^. #rowCount) + 1)
-    ((c ^. #equalityConstraints) <> getDummyRowEqualityConstraints dri c)
-    ((c ^. #fixedValues) <> dummyRowAndColFixedValues dri dci c)
+  pure $
+    Circuit
+      ((c ^. #columnTypes) <> ColumnTypes (Map.singleton (dci ^. #unDummyRowIndicatorColumnIndex) Advice))
+      (EqualityConstrainableColumns (Map.keysSet (c ^. #columnTypes . #getColumnTypes)))
+      (restrictGateConstraintsToNonDummyRows dci (c ^. #gateConstraints))
+      (removeLookupArgumentsGates dci (c ^. #lookupArguments))
+      ((c ^. #rowCount) + 1)
+      ((c ^. #equalityConstraints) <> getDummyRowEqualityConstraints dri c)
+      ((c ^. #fixedValues) <> dummyRowAndColFixedValues dri dci c)
   where
     dri = getDummyRowIndex c
     dci = getDummyRowIndicatorColumnIndex c
-
 
 getDummyRowEqualityConstraints ::
   DummyRowIndex ->
   ArithmeticCircuit ->
   EqualityConstraints
 getDummyRowEqualityConstraints dri c =
-  EqualityConstraints . (:[]) . EqualityConstraint
-    $ Set.fromList
-        [ (CellReference ci (dri ^. #unDummyRowIndex))
-          | ci <- Map.keys (c ^. #columnTypes . #getColumnTypes)
-        ]
-
+  EqualityConstraints . (: []) . EqualityConstraint $
+    Set.fromList
+      [ (CellReference ci (dri ^. #unDummyRowIndex))
+        | ci <- Map.keys (c ^. #columnTypes . #getColumnTypes)
+      ]
 
 checkVariableRowOffsetsAreZero ::
   ArithmeticCircuit ->
@@ -138,7 +129,6 @@ checkVariableRowOffsetsAreZero =
     . all ((== 0) . (^. #rowIndex))
     . getPolynomialVariables
 
-
 restrictGateConstraintsToNonDummyRows ::
   DummyRowIndicatorColumnIndex ->
   PolynomialConstraints ->
@@ -148,7 +138,6 @@ restrictGateConstraintsToNonDummyRows dci cs =
     (second (restrictGateConstraintToNonDummyRows dci) <$> (cs ^. #constraints))
     ((cs ^. #degreeBound) + 1)
 
-
 restrictGateConstraintToNonDummyRows ::
   DummyRowIndicatorColumnIndex ->
   Polynomial ->
@@ -156,7 +145,6 @@ restrictGateConstraintToNonDummyRows ::
 restrictGateConstraintToNonDummyRows dci p =
   (P.one `P.minus` P.var' (dci ^. #unDummyRowIndicatorColumnIndex))
     `P.times` p
-
 
 removeLookupArgumentsGates ::
   DummyRowIndicatorColumnIndex ->
@@ -167,7 +155,6 @@ removeLookupArgumentsGates dci =
     . Set.map (removeLookupArgumentGates dci)
     . (^. #getLookupArguments)
 
-
 removeLookupArgumentGates ::
   DummyRowIndicatorColumnIndex ->
   LookupArgument Polynomial ->
@@ -176,16 +163,19 @@ removeLookupArgumentGates dci'@(DummyRowIndicatorColumnIndex dci) arg =
   LookupArgument
     (arg ^. #label)
     P.zero
-    ([(InputExpression ((d `P.plus` g) `P.minus` (d `P.times` g)),
-       LookupTableColumn dci)] <>
-     (first (gateInputExpression dci' (arg ^. #gate)) <$>
-      (arg ^. #tableMap)))
+    ( [ ( InputExpression (P.normalize ((d `P.plus` g) `P.minus` (d `P.times` g))),
+          LookupTableColumn dci
+        )
+      ]
+        <> ( first (gateInputExpression dci' (arg ^. #gate))
+               <$> (arg ^. #tableMap)
+           )
+    )
   where
     -- d = 1 iff this is the dummy row
     d = P.var' dci
     -- g = 1 iff the gate is not satisfied
     g = arg ^. #gate
-
 
 gateInputExpression ::
   DummyRowIndicatorColumnIndex ->
@@ -194,10 +184,10 @@ gateInputExpression ::
   InputExpression Polynomial
 gateInputExpression (DummyRowIndicatorColumnIndex dci) p =
   InputExpression
+    . P.normalize
     . (P.times (P.one `P.minus` P.var' dci))
     . (P.times (P.one `P.minus` p))
     . (^. #getInputExpression)
-
 
 dummyRowAndColFixedValues ::
   DummyRowIndex ->
@@ -205,21 +195,20 @@ dummyRowAndColFixedValues ::
   ArithmeticCircuit ->
   FixedValues (RowIndex Absolute)
 dummyRowAndColFixedValues dri dci c =
-  FixedValues . Map.fromList
-    $ [ (ci, FixedColumn $ Map.fromList [ (dri ^. #unDummyRowIndex, zero) ])
-        | (ci, t) <- Map.toList (c ^. #columnTypes . #getColumnTypes),
-          t == Fixed
-      ]
-      <>
-      [ (dci ^. #unDummyRowIndicatorColumnIndex,
-          FixedColumn $
-            Map.singleton (dri ^. #unDummyRowIndex) one <>
-              Map.fromList
-                [ (ri, zero)
-                  | ri <- [0 .. r']
-                ]
-        )
-      ]
+  FixedValues . Map.fromList $
+    [ (ci, FixedColumn $ Map.fromList [(dri ^. #unDummyRowIndex, zero)])
+      | (ci, t) <- Map.toList (c ^. #columnTypes . #getColumnTypes),
+        t == Fixed
+    ]
+      <> [ ( dci ^. #unDummyRowIndicatorColumnIndex,
+             FixedColumn $
+               Map.singleton (dri ^. #unDummyRowIndex) one
+                 <> Map.fromList
+                   [ (ri, zero)
+                     | ri <- [0 .. r']
+                   ]
+           )
+         ]
   where
     r' =
       maybe
@@ -227,14 +216,12 @@ dummyRowAndColFixedValues dri dci c =
         (RowIndex . subtract 1)
         (integerToInt (scalarToInteger (c ^. #rowCount . #getRowCount)))
 
-
 removeLookupGatesArgumentConversion ::
   ArithmeticCircuit ->
   Argument ->
   Argument
 removeLookupGatesArgumentConversion c arg =
   arg <> Argument (getDummyRowStatement c) (getDummyRowWitness c <> getDummyColWitness c)
-
 
 getDummyRowStatement ::
   ArithmeticCircuit ->
@@ -246,7 +233,6 @@ getDummyRowStatement c =
         t == Instance,
         let ri = getDummyRowIndex c ^. #unDummyRowIndex
     ]
-
 
 getDummyRowWitness ::
   ArithmeticCircuit ->
@@ -260,7 +246,6 @@ getDummyRowWitness c =
   where
     ri = getDummyRowIndex c ^. #unDummyRowIndex
 
-
 getDummyColWitness ::
   ArithmeticCircuit ->
   Witness
@@ -271,8 +256,10 @@ getDummyColWitness c =
         let v = if ri == dri then one else zero
     ]
   where
-    dri = getDummyRowIndex c
-            ^. #unDummyRowIndex
+    dri =
+      getDummyRowIndex c
+        ^. #unDummyRowIndex
 
-    ci = getDummyRowIndicatorColumnIndex c
-           ^. #unDummyRowIndicatorColumnIndex
+    ci =
+      getDummyRowIndicatorColumnIndex c
+        ^. #unDummyRowIndicatorColumnIndex
