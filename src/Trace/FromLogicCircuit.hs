@@ -1039,10 +1039,8 @@ logicCircuitToTraceType bitsPerByte c =
     colTypes'
     (c ^. #equalityConstrainableColumns)
     (c ^. #equalityConstraints)
-    (caseFixedValuesToRowFixedValues
-      maxStepsPerCase
-      (rowIndexFixedValuesToCaseFixedValues (c ^. #fixedValues)))
-    stepTypes
+    (padFixedValues circuitFixedValues)
+    (padStepTypeFixedValues <$> stepTypes)
     subexprs
     (getSubexpressionLinksMap mapping)
     (getResultExpressionIds mapping)
@@ -1052,9 +1050,31 @@ logicCircuitToTraceType bitsPerByte c =
     (mapping ^. #inputs)
     (mapping ^. #output)
     (NumberOfCases (rowCount ^. #getRowCount))
-    (rowCount * RowCount (maxStepsPerCase ^. #unMaxStepsPerCase))
+    rowCount
   where
-    rowCount = c ^. #rowCount
+    circuitRowCount = c ^. #rowCount
+
+    circuitFixedValues =
+      (caseFixedValuesToRowFixedValues
+        maxStepsPerCase
+        (rowIndexFixedValuesToCaseFixedValues (c ^. #fixedValues)))
+
+    stepTypeFixedValues :: FixedValues (RowIndex Absolute)
+    stepTypeFixedValues = die "todo"
+
+    stepsRowCount = circuitRowCount * RowCount (maxStepsPerCase ^. #unMaxStepsPerCase)
+
+    allFixedValuesUnpadded = circuitFixedValues <> stepTypeFixedValues
+
+    rowCount :: RowCount
+    rowCount = die "todo"
+
+    -- pad fixed values to rowCount
+    padStepTypeFixedValues :: _
+    padStepTypeFixedValues = die "todo"
+
+    padFixedValues :: _
+    padFixedValues = die "todo"
 
     mapping = getMapping bitsPerByte c
 
