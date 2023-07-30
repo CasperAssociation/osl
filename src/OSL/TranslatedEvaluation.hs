@@ -318,7 +318,7 @@ evalTranslatedFormula7 rowCount bitsPerByte c name argumentForm argument = do
   t <-
     mapLeft
       (\(ErrorMessage ann msg) -> ErrorMessage ann ("argumentToTrace: " <> msg))
-      (argumentToTrace Nothing bitsPerByte logic lcArg)
+      (argumentToTrace Nothing bitsPerByte logic tt lcArg)
   mapLeft
     (\(ErrorMessage ann msg) -> ErrorMessage ann ("evalTrace: " <> msg))
     (evalTrace Nothing tt t)
@@ -343,7 +343,7 @@ evalTranslatedFormula8 rowCount bitsPerByte c name argumentForm argument = do
       ( \(ErrorMessage ann msg) ->
           ErrorMessage ann ("argumentToTrace: " <> msg)
       )
-      (argumentToTrace Nothing bitsPerByte logic lcArg)
+      (argumentToTrace Nothing bitsPerByte logic tt lcArg)
   arg <-
     mapLeft
       ( \(ErrorMessage ann msg) ->
@@ -382,7 +382,7 @@ evalTranslatedFormula9 rowCount bitsPerByte c name argumentForm argument = do
       ( \(ErrorMessage ann msg) ->
           ErrorMessage ann ("argumentToTrace: " <> msg)
       )
-      (argumentToTrace Nothing bitsPerByte logic lcArg)
+      (argumentToTrace Nothing bitsPerByte logic tt lcArg)
   arg <-
     mapLeft
       ( \(ErrorMessage ann msg) ->
@@ -423,7 +423,7 @@ evalTranslatedFormula10 rowCount bitsPerByte c name argumentForm argument = do
       ( \(ErrorMessage ann msg) ->
           ErrorMessage ann ("argumentToTrace: " <> msg)
       )
-      (argumentToTrace Nothing bitsPerByte logic lcArg)
+      (argumentToTrace Nothing bitsPerByte logic tt lcArg)
   arg <-
     mapLeft
       ( \(ErrorMessage ann msg) ->
@@ -474,7 +474,7 @@ evalTranslatedFormula11 target port rowCount bitsPerByte c name argumentForm arg
         ( \(ErrorMessage ann msg) ->
             ErrorMessage ann ("argumentToTrace: " <> msg)
         )
-        (argumentToTrace Nothing bitsPerByte logic lcArg)
+        (argumentToTrace Nothing bitsPerByte logic tt lcArg)
   arg <-
     except $
       mapLeft

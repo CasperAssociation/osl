@@ -4,11 +4,10 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
--- TODO: remove
-{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-unused-local-binds -Wno-unused-matches #-}
 
 module Trace.FromLogicCircuit
   ( logicCircuitToTraceType,
@@ -23,13 +22,13 @@ import qualified Algebra.Additive as Group
 import qualified Algebra.Ring as Ring
 import Cast (intToInteger, integerToInt)
 import Control.Applicative ((<|>))
-import Control.Lens ((<&>), _1, _2, _3)
+import Control.Lens ((<&>), (%~), _1, _2, _3)
 import Control.Monad (foldM, forM_, mzero, replicateM, when)
 import Control.Monad.Trans.State (State, evalState, get, put)
 import Data.Either.Extra (mapLeft)
 import Data.List (foldl')
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, maybeToList)
 import qualified Data.Set as Set
 import Data.Text (pack)
 import Die (die)
@@ -80,6 +79,15 @@ rowIndexToCase =
     . integerToScalar
     . intToInteger
     . (^. #getRowIndex)
+
+caseToRowIndex :: Case -> RowIndex Absolute
+caseToRowIndex =
+  maybe
+    (die "Trace.FromLogicCircuit.caseToRowIndex: could not convert case to row index")
+    RowIndex
+    . integerToInt
+    . scalarToInteger
+    . (^. #unCase)
 
 -- Type-casts the keys in the fixed values from row indices to cases.
 rowIndexFixedValuesToCaseFixedValues ::
@@ -206,22 +214,27 @@ argumentToTrace ::
   ann ->
   BitsPerByte ->
   LogicCircuit ->
+  TraceType ->
   LC.Argument ->
   Either (ErrorMessage ann) Trace
-argumentToTrace ann bitsPerByte lc arg = do
+argumentToTrace ann bitsPerByte lc tt arg = do
   usedCases <- logicCircuitUsedCases ann lc
-  let usedRowIndices = die "todo"
+  nRows :: RowIndex Absolute <-
+    maybe (Left (ErrorMessage ann "row count exceeds bound of Int"))
+      (Right . RowIndex)
+      (integerToInt (scalarToInteger (tt ^. #rowCount . #getRowCount)))
+  let usedRowIndices = Set.fromList [0 .. nRows - 1]
   voidId <-
     maybe
       (Left (ErrorMessage ann "no void subexpression id"))
       (pure . (^. #unOf))
       (mapping ^. #subexpressionIds . #void)
   Trace
-    <$> logicCircuitStatementToTraceStatement ann lc (arg ^. #statement)
-    <*> logicCircuitWitnessToTraceWitness ann lc (arg ^. #witness)
+    <$> logicCircuitStatementToTraceStatement ann mapping (arg ^. #statement)
+    <*> logicCircuitWitnessToTraceWitness ann mapping (arg ^. #witness)
     <*> ( Map.unionWith (<>)
             (voidSubexpressionTraces usedRowIndices voidId)
-            <$> argumentSubexpressionTraces ann lc arg mapping usedRowIndices
+            <$> argumentSubexpressionTraces ann lc arg mapping usedCases
         )
   where
     voidSubexpressionTraces usedRowIds voidId =
@@ -263,20 +276,35 @@ argumentSubexpressionTraces ::
     (Map (RowIndex Absolute)
        (Map SubexpressionId SubexpressionTrace))
 argumentSubexpressionTraces ann lc arg mapping cases = do
+  let maxStepsPerCase =
+        getMaxStepsPerCase
+          (getSubexpressionIdSet
+            (mapping ^. #subexpressionIds))
   tables <- getLookupCaches ann lc arg
   Map.unionsWith (<>)
     <$> mapM
       (uncurry (caseArgumentSubexpressionTraces ann lc arg mapping tables))
       [ (c, ri)
         | c <- Set.toList cases,
-          ri <- Set.toList (getCaseRows lc c)
+          ri <- Set.toList (getCaseRows maxStepsPerCase c)
       ]
 
 getCaseRows ::
-  LogicCircuit ->
+  MaxStepsPerCase ->
   Case ->
   Set (RowIndex Absolute)
-getCaseRows = die "todo"
+getCaseRows (MaxStepsPerCase n) (Case m) =
+  Set.fromList (RowIndex <$> [m' * n' .. (m' * n') + (n' - 1)])
+  where
+    n' =
+      fromMaybe (die "Trace.FromLogicCircuit.caseFixedValuesToRowFixedValues: max steps per case > max Int")
+        . integerToInt
+        . scalarToInteger $ n
+
+    m' =
+      fromMaybe (die "Trace.FromLogicCircuit.caseFixedValuesToRowFixedValues: case # > max Int")
+        . integerToInt
+        . scalarToInteger $ m
 
 caseArgumentSubexpressionTraces ::
   ann ->
@@ -739,7 +767,7 @@ polyVarSubexpressionTraces ::
      Scalar)
 polyVarSubexpressionTraces ann numCases arg mapping c ri x =
   if x ^. #rowIndex == 0
-    then polyVarSameCaseSubexpressionTraces ann numCases arg mapping ri x
+    then polyVarSameCaseSubexpressionTraces ann numCases arg mapping c ri x
     else polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x
 
 polyVarSameCaseSubexpressionTraces ::
@@ -747,13 +775,14 @@ polyVarSameCaseSubexpressionTraces ::
   NumberOfCases ->
   LC.Argument ->
   Mapping ->
+  Case ->
   RowIndex Absolute ->
   PolynomialVariable ->
   Either (ErrorMessage ann)
     (Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace),
      SubexpressionId,
      Scalar)
-polyVarSameCaseSubexpressionTraces ann numCases arg mapping c x = do
+polyVarSameCaseSubexpressionTraces ann numCases arg mapping c ri x = do
   st <-
     maybe
       (Left (ErrorMessage ann "load step type lookup failed"))
@@ -765,7 +794,7 @@ polyVarSameCaseSubexpressionTraces ann numCases arg mapping c x = do
       (pure . (^. #unOf))
       (Map.lookup x (mapping ^. #subexpressionIds . #variables))
   v <- polyVarValue ann numCases arg c x
-  pure (Map.singleton c (Map.singleton sId (SubexpressionTrace v st defaultAdvice)), sId, v)
+  pure (Map.singleton ri (Map.singleton sId (SubexpressionTrace v st defaultAdvice)), sId, v)
   where
     defaultAdvice = getDefaultAdvice mapping
 
@@ -773,19 +802,17 @@ polyVarValue ::
   ann ->
   NumberOfCases ->
   LC.Argument ->
-  RowIndex Absolute ->
+  Case ->
   PolynomialVariable ->
   Either (ErrorMessage ann) Scalar
-polyVarValue ann (NumberOfCases numCases) arg ri v = do
-  when
-    ((v ^. #rowIndex) /= (0 :: RowIndex Relative))
-    (Left (ErrorMessage ann "unsupported: non-zero relative offets in poly var values in trace types"))
+polyVarValue ann (NumberOfCases numCases) arg c v = do
   numCases' <-
     maybe
       (Left (ErrorMessage ann "number of cases exceeds max Int"))
       pure
       (integerToInt (scalarToInteger numCases))
-  let ref =
+  let ri = caseToRowIndex c
+      ref =
         CellReference
           (v ^. #colIndex)
           ( RowIndex
@@ -834,13 +861,14 @@ polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x = do
       (Left (ErrorMessage ann "variable subexpression id lookup failed"))
       (pure . (^. #unOf))
       (Map.lookup x (mapping ^. #subexpressionIds . #variables))
-  v <- polyVarValue ann numCases arg ri x
+  v <- polyVarValue ann numCases arg c x
   (m2, _, _) <-
     polyVarSameCaseSubexpressionTraces
       ann
       numCases
       arg
       mapping
+      c
       ri
       (PolynomialVariable (x ^. #colIndex) 0)
   let m3 = Map.singleton ri $
@@ -977,29 +1005,34 @@ lookupArgumentSubexpressionTraces ann _ _ _ _ _ _ _ =
 
 logicCircuitStatementToTraceStatement ::
   ann ->
-  LogicCircuit ->
+  Mapping ->
   LC.Statement ->
   Either (ErrorMessage ann) Statement
-logicCircuitStatementToTraceStatement ann lc stmt = do
+logicCircuitStatementToTraceStatement ann mapping stmt = do
   caseAndColMap <- cellMapToCaseAndColMap ann (stmt ^. #unStatement)
+  let maxStepsPerCase = getMaxStepsPerCase (getSubexpressionIdSet (mapping ^. #subexpressionIds))
   pure . Statement $ Map.fromList
     [ ((ri, ci), x)
       | ((c, ci), x) <- Map.toList caseAndColMap,
-        ri <- Set.toList $ getCaseRows lc c
+        ri <- Set.toList $ getCaseRows maxStepsPerCase c
     ]
 
 logicCircuitWitnessToTraceWitness ::
   ann ->
-  LogicCircuit ->
+  Mapping ->
   LC.Witness ->
   Either (ErrorMessage ann) Witness
-logicCircuitWitnessToTraceWitness ann lc witness = do
+logicCircuitWitnessToTraceWitness ann mapping witness = do
   caseAndColMap <- cellMapToCaseAndColMap ann (witness ^. #unWitness)
   pure . Witness $ Map.fromList
     [ ((ri, ci), x)
       | ((c, ci), x) <- Map.toList caseAndColMap,
-        ri <- Set.toList $ getCaseRows lc c
+        ri <- Set.toList $ getCaseRows maxStepsPerCase c
     ]
+  where
+    maxStepsPerCase =
+      getMaxStepsPerCase
+        (getSubexpressionIdSet (mapping ^. #subexpressionIds))
 
 cellMapToCaseAndColMap ::
   ann ->
@@ -1020,8 +1053,8 @@ cellMapToCaseAndColMap ann cellMap =
       ]
 
 -- TODO:
---  [ ] extend row count to at least enough to fit all fixed tables;
---  [ ] extend all fixed tables to row count using last row replication;
+--  [x] extend row count to at least enough to fit all fixed tables;
+--  [x] extend all fixed tables to row count using last row replication;
 --  [x] replicate circuit fixed values to translate from case indexing to
 --      row indexing
 --  This strategy won't work as outlined! It may break reliance of the
@@ -1049,32 +1082,65 @@ logicCircuitToTraceType bitsPerByte c =
     (mapping ^. #stepIndicator)
     (mapping ^. #inputs)
     (mapping ^. #output)
-    (NumberOfCases (rowCount ^. #getRowCount))
+    (NumberOfCases (c ^. #rowCount . #getRowCount))
     rowCount
   where
+    circuitRowCount :: RowCount
     circuitRowCount = c ^. #rowCount
 
+    circuitFixedValues :: FixedValues (RowIndex Absolute)
     circuitFixedValues =
       (caseFixedValuesToRowFixedValues
         maxStepsPerCase
         (rowIndexFixedValuesToCaseFixedValues (c ^. #fixedValues)))
 
     stepTypeFixedValues :: FixedValues (RowIndex Absolute)
-    stepTypeFixedValues = die "todo"
+    stepTypeFixedValues = mconcat . Map.elems $ stepTypes <&> (^. #fixedValues)
 
+    stepsRowCount :: RowCount
     stepsRowCount = circuitRowCount * RowCount (maxStepsPerCase ^. #unMaxStepsPerCase)
 
+    allFixedValuesUnpadded :: FixedValues (RowIndex Absolute)
     allFixedValuesUnpadded = circuitFixedValues <> stepTypeFixedValues
 
+    maxFixedValuesRowIndex :: RowIndex Absolute
+    maxFixedValuesRowIndex =
+      foldl' max 0 . Map.elems $
+        maybe 0 fst . Map.lookupMax . (^. #unFixedColumn)
+          <$> (allFixedValuesUnpadded ^. #getFixedValues)
+
+    fixedValuesRowCount :: RowCount
+    fixedValuesRowCount =
+      RowCount
+        . fromMaybe (die "Trace.FromLogicCircuit.logicCircuitToTraceType.fixedValuesRowCount: row index out of range of scalar")
+        . integerToScalar
+        . (+1)
+        . intToInteger
+        $ maxFixedValuesRowIndex ^. #getRowIndex
+
     rowCount :: RowCount
-    rowCount = die "todo"
+    rowCount = stepsRowCount `max` fixedValuesRowCount
 
-    -- pad fixed values to rowCount
-    padStepTypeFixedValues :: _
-    padStepTypeFixedValues = die "todo"
+    padStepTypeFixedValues :: StepType -> StepType
+    padStepTypeFixedValues = #fixedValues %~ padFixedValues
 
-    padFixedValues :: _
-    padFixedValues = die "todo"
+    padFixedValues :: FixedValues (RowIndex Absolute) -> FixedValues (RowIndex Absolute)
+    padFixedValues = FixedValues . fmap padFixedColumn . (^. #getFixedValues)
+
+    padFixedColumn :: FixedColumn (RowIndex Absolute) -> FixedColumn (RowIndex Absolute)
+    padFixedColumn (FixedColumn vs)
+      | null vs = mempty
+      | otherwise =
+          case Map.lookupMax vs of
+            Just (k, v) ->
+              FixedColumn
+                (vs <> Map.fromList
+                        [ (k', v)
+                          | kBound <- maybeToList . integerToInt . scalarToInteger
+                                        $ rowCount ^. #getRowCount,
+                            k' <- [k+1 .. RowIndex (kBound - 1)]
+                        ])
+            Nothing -> die "Trace.FromLogicCircuit.logicCircuitToTraceType.padFixedColumn: this code is supposed to be unreachable"
 
     mapping = getMapping bitsPerByte c
 
@@ -2138,13 +2204,12 @@ byteDecompositionCheck (BitsPerByte bitsPerByte) c m =
         (PolynomialDegreeBound 2)
     )
     (byteRangeAndTruthChecks m)
-    (truthTables rc m)
+    (truthTables m)
   where
     (i0, i1) = firstTwoInputs m
     v0 = P.var' (i0 ^. #unInputColumnIndex)
     v1 = P.var' (i1 ^. #unInputColumnIndex)
     s = P.var' (m ^. #byteDecomposition . #sign . #unSignColumnIndex)
-    rc = c ^. #rowCount
 
     byteCoefs, byteVars :: [Polynomial]
     byteCoefs =
@@ -2178,10 +2243,9 @@ infiniteRowIndexList =
   RowIndex <$> [0..]
 
 truthTables ::
-  RowCount ->
   Mapping ->
   FixedValues (RowIndex Absolute)
-truthTables (RowCount n) m =
+truthTables m =
   FixedValues . Map.fromList $
     [ ( m ^. #truthTable . #byteRangeColumnIndex . #unByteRangeColumnIndex,
         byteRange
@@ -2191,12 +2255,8 @@ truthTables (RowCount n) m =
       )
     ]
   where
-    b, n' :: Int
+    b :: Int
     b = 2 ^ (m ^. #byteDecomposition . #bits . #unBitsPerByte)
-    n' =
-      fromMaybe
-        (die "Trace.FromLogicCircuit.truthTables: row count out of range of Int")
-        (integerToInt (scalarToInteger n))
 
     byteRange, zeroIndicator :: FixedColumn (RowIndex Absolute)
     byteRange =
