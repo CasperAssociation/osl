@@ -13,17 +13,14 @@ where
 
 import qualified Algebra.Additive as Group
 import qualified Algebra.Ring as Ring
-import Cast (intToInteger)
 import Control.Lens ((<&>), (^.))
 import Control.Monad (forM, forM_, unless, when)
 import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe, maybeToList)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (pack)
-import Die (die)
 import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnIndex (ColumnIndex)
@@ -38,8 +35,9 @@ import Halo2.Types.PolynomialVariable (PolynomialVariable)
 import Halo2.Types.PowerProduct (PowerProduct)
 import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
-import Stark.Types.Scalar (Scalar, one, integerToScalar, zero)
-import Trace.Types (OutputSubexpressionId (..), ResultExpressionId (ResultExpressionId), StepType, SubexpressionId, SubexpressionTrace, Trace, TraceType)
+import Stark.Types.Scalar (Scalar, one, zero)
+import Trace (getCaseRows)
+import Trace.Types (Case, OutputSubexpressionId (..), ResultExpressionId (ResultExpressionId), StepType, SubexpressionId, SubexpressionTrace, Trace, TraceType)
 import Trace.Types.EvaluationContext (ContextType (Global, Local), EvaluationContext (EvaluationContext))
 
 evalTrace ::
@@ -53,8 +51,8 @@ evalTrace ann tt t = do
   -- TODO: check that all step type selection vectors have the correct number of ones
   checkAllEqualityConstraintsAreSatisfied ann tt t
 
-getUsedRows :: Trace -> Set (RowIndex Absolute)
-getUsedRows = Map.keysSet . (^. #subexpressions)
+getUsedCases :: Trace -> Set Case
+getUsedCases = Map.keysSet . (^. #subexpressions)
 
 checkAllResultsArePresentForUsedCases ::
   ann ->
@@ -62,7 +60,7 @@ checkAllResultsArePresentForUsedCases ::
   Trace ->
   Either (ErrorMessage ann) ()
 checkAllResultsArePresentForUsedCases ann tt t =
-  forM_ (getUsedRows t) $ \c ->
+  forM_ (getUsedCases t) $ \c ->
     forM_ (tt ^. #results) $ \(ResultExpressionId sId) ->
       maybe
         ( Left
@@ -84,10 +82,10 @@ checkAllStepConstraintsAreSatisfied ::
 checkAllStepConstraintsAreSatisfied ann tt t = do
   gc <- getGlobalEvaluationContext ann tt t
   forM_ (Map.toList (t ^. #subexpressions)) $
-    \(ri, ss) ->
+    \(c, ss) ->
       forM_ (Map.toList ss) $
-        \(sId, sT) -> do
-          lc <- getSubexpressionEvaluationContext ann tt t gc (ri, sId, sT)
+        \(sId, (ri, sT)) -> do
+          lc <- getSubexpressionEvaluationContext ann tt t gc (c, sId, sT)
           checkStepConstraintsAreSatisfied ann tt ri sT sId lc
 
 checkStepConstraintsAreSatisfied ::
@@ -233,7 +231,9 @@ checkAllEqualityConstraintsAreSatisfied ann tt t = do
     vs <- mapM (lookupCellReference ann cellMap) (Set.toList (eq ^. #getEqualityConstraint))
     case vs of
       [] -> pure ()
-      (v : _) -> unless (all (== v) vs) (Left (ErrorMessage ann "equality constraint not satisifed"))
+      (v : _) ->
+        unless (all (== v) vs)
+          (Left (ErrorMessage ann "equality constraint not satisifed"))
 
 lookupCellReference ::
   ann ->
@@ -316,9 +316,9 @@ getCaseNumberColumnMappings ::
   Map (RowIndex Absolute, ColumnIndex) Scalar
 getCaseNumberColumnMappings tt t =
   Map.fromList
-    [((i, col), i')
-      | i <- Set.toList (getUsedRows t),
-        i' <- maybeToList (integerToScalar (intToInteger (i ^. #getRowIndex)))
+    [((ri, col), c ^. #unCase)
+      | c  <- Set.toList (getUsedCases t),
+        ri <- Set.toList (getCaseRows (tt ^. #maxStepsPerCase) c)
     ]
   where
     col = tt ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex
@@ -346,7 +346,7 @@ getSubexpressionEvaluationContext ::
   TraceType ->
   Trace ->
   EvaluationContext 'Global ->
-  (RowIndex Absolute, SubexpressionId, SubexpressionTrace) ->
+  (Case, SubexpressionId, SubexpressionTrace) ->
   Either (ErrorMessage ann) (EvaluationContext 'Local)
 getSubexpressionEvaluationContext ann tt t gc (c, sId, sT) =
   EvaluationContext
@@ -358,10 +358,10 @@ getSubexpressionEvaluationContext ann tt t gc (c, sId, sT) =
       mconcat
         <$> sequence
           [ inputMappings,
-            outputMapping,
-            caseNumberMapping,
-            stepTypeMapping,
-            stepIndicatorMapping,
+            pure outputMapping,
+            pure caseNumberMapping,
+            pure stepTypeMapping,
+            pure stepIndicatorMapping,
             pure (sT ^. #adviceValues)
           ]
 
@@ -379,7 +379,7 @@ getSubexpressionEvaluationContext ann tt t gc (c, sId, sT) =
               -- is going on here and we should replace the bare lookup step type
               -- maybe with just a (functional) lookup step type.
               [ case Map.lookup iId =<< Map.lookup c (t ^. #subexpressions) of
-                  Just sT' -> pure (col, sT' ^. #value)
+                  Just (_ri, sT') -> pure (col, sT' ^. #value)
                   Nothing ->
                     -- trace (show (t ^. #subexpressions)) $
                     Left (ErrorMessage ann ("expected input not present: " <> pack (show (c, iId, is, sT))))
@@ -393,31 +393,31 @@ getSubexpressionEvaluationContext ann tt t gc (c, sId, sT) =
             "no links found for this subexpression's step type and id: "
               <> pack (show (c, sId, sT))
 
+    outputMapping :: Map ColumnIndex Scalar
     outputMapping =
-      pure $ Map.singleton (tt ^. #outputColumnIndex . #unOutputColumnIndex) (sT ^. #value)
+      Map.singleton (tt ^. #outputColumnIndex . #unOutputColumnIndex) (sT ^. #value)
 
+    caseNumberMapping :: Map ColumnIndex Scalar
     caseNumberMapping =
-      pure
-        (Map.singleton
-          (tt ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex)
-          (fromMaybe
-            (die "Trace.Semantics.getSubexpressionEvaluationContext: row index is out of range of scalar (this is a compiler bug")
-            (integerToScalar (intToInteger (c ^. #getRowIndex)))))
+      Map.singleton
+        (tt ^. #caseNumberColumnIndex . #unCaseNumberColumnIndex)
+        (c ^. #unCase)
 
+    stepTypeMapping :: Map ColumnIndex Scalar
     stepTypeMapping =
-      pure $
-        Map.fromList
-          [ (ci, if stId == sT ^. #stepType then one else zero)
-            | (stId, ci) <-
-                Map.toList
-                  ( tt
-                      ^. #stepTypeIdColumnIndices
-                        . #unStepTypeIdSelectionVector
-                  )
-          ]
+      Map.fromList
+        [ (ci, if stId == sT ^. #stepType then one else zero)
+          | (stId, ci) <-
+              Map.toList
+                ( tt
+                    ^. #stepTypeIdColumnIndices
+                      . #unStepTypeIdSelectionVector
+                )
+        ]
 
+    stepIndicatorMapping :: Map ColumnIndex Scalar
     stepIndicatorMapping =
-      pure (Map.singleton (tt ^. #stepIndicatorColumnIndex . #unStepIndicatorColumnIndex) zero)
+      Map.singleton (tt ^. #stepIndicatorColumnIndex . #unStepIndicatorColumnIndex) zero
 
 -- We could speed this up by doing the full loop over all subexpressions only when
 -- the lookup table columns are not entirely contained by the statement and witness.
@@ -430,7 +430,7 @@ getLookupTable ::
   Either (ErrorMessage ann) [Map LookupTableColumn Scalar]
 getLookupTable ann tt t gc cs =
   fmap mconcat . forM (Map.toList (t ^. #subexpressions)) $ \(c, ss) ->
-    forM (Map.toList ss) $ \(sId, sT) -> do
+    forM (Map.toList ss) $ \(sId, (ri, sT)) -> do
       lc <- getSubexpressionEvaluationContext ann tt t gc (c, sId, sT)
       Map.fromList
         <$> sequence
@@ -445,7 +445,8 @@ getLookupTable ann tt t gc cs =
                       )
                   )
                   (pure . (col,))
-                  (Map.lookup (c, col ^. #unLookupTableColumn) (lc ^. #globalMappings))
+                  (Map.lookup (ri, col ^. #unLookupTableColumn)
+                    (lc ^. #globalMappings))
               )
               (pure . (col,))
               (Map.lookup (col ^. #unLookupTableColumn) (lc ^. #localMappings))

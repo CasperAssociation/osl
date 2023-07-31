@@ -155,6 +155,7 @@ library
     Semicircuit.Types.SemicircuitToLogicCircuitColumnLayout
     Semicircuit.Types.Sigma11
     Stark.Types.Scalar
+    Trace
     Trace.FromLogicCircuit
     Trace.LogicToArithmetic
     Trace.Metrics

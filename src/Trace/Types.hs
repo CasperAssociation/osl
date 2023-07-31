@@ -18,6 +18,7 @@ module Trace.Types
     StepIndicatorColumnIndex (StepIndicatorColumnIndex),
     CaseNumberColumnIndex (CaseNumberColumnIndex),
     NumberOfCases (NumberOfCases),
+    MaxStepsPerCase (MaxStepsPerCase),
     Case (Case),
     StepTypeIdSelectionVector (StepTypeIdSelectionVector),
     TraceType (TraceType),
@@ -134,13 +135,17 @@ data TraceType = TraceType
     inputColumnIndices :: [InputColumnIndex],
     outputColumnIndex :: OutputColumnIndex,
     numCases :: NumberOfCases,
-    rowCount :: RowCount
+    rowCount :: RowCount,
+    maxStepsPerCase :: MaxStepsPerCase
   }
   deriving (Generic, Show)
 
 newtype Case = Case {unCase :: Scalar}
   deriving stock (Eq, Ord, Generic)
   deriving newtype (Show, Group.C)
+
+newtype MaxStepsPerCase = MaxStepsPerCase { unMaxStepsPerCase :: Scalar }
+  deriving (Generic, Show)
 
 newtype Statement = Statement {unStatement :: Map (RowIndex Absolute, ColumnIndex) Scalar}
   deriving (Generic, Show)
@@ -151,7 +156,7 @@ newtype Witness = Witness {unWitness :: Map (RowIndex Absolute, ColumnIndex) Sca
 data Trace = Trace
   { statement :: Statement,
     witness :: Witness,
-    subexpressions :: Map (RowIndex Absolute) (Map SubexpressionId SubexpressionTrace)
+    subexpressions :: Map Case (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace))
   }
   deriving (Generic, Show)
 

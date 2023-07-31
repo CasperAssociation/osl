@@ -18,7 +18,7 @@ where
 
 import Cast (intToInteger, integerToInt)
 import Control.Arrow (second)
-import Control.Lens ((<&>))
+import Control.Lens ((<&>), _2)
 import Data.List.Extra (mconcatMap, (!?))
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe, maybeToList)
@@ -341,7 +341,7 @@ caseArgument ::
   RowIndex Absolute ->
   Either (ErrorMessage ann) Argument
 caseArgument ann tt t m fvs airFvs c ri =
-  case Map.lookup ri (t ^. #subexpressions) of
+  case Map.lookup c (t ^. #subexpressions) of
     Nothing -> unusedCaseArgument ann tt t m fvs airFvs c ri
     Just es ->
       if Map.null es
@@ -375,13 +375,13 @@ usedCaseArgument ::
   AIRFixedValues ->
   Case ->
   RowIndex Absolute ->
-  Map SubexpressionId SubexpressionTrace ->
+  Map SubexpressionId (RowIndex Absolute, SubexpressionTrace) ->
   Either (ErrorMessage ann) Argument
 usedCaseArgument ann tt t m fvs airFvs c ri es = do
   arg0 <- emptyCaseArgument ann tt t m fvs airFvs c ri CaseIsUsed
   args <-
     mapM
-      (\(_ri, (sId, sT)) ->
+      (\(_ri, (sId, (_ri', sT))) ->
         subexpressionArgument ann tt t m fvs airFvs c ri CaseIsUsed sId sT)
       (filter ((== ri) . fst)
         (zip (caseRowIndices tt c) (Map.toList es)))
@@ -589,7 +589,7 @@ subexpressionTraceValuesArgument ::
   SubexpressionTrace ->
   RowIndex 'Absolute ->
   Either (ErrorMessage ann) Argument
-subexpressionTraceValuesArgument ann tt t m _c used sId sT ri =
+subexpressionTraceValuesArgument ann tt t m c used sId sT ri =
   Argument mempty . Witness . mconcat
     <$> sequence
       [ -- case used
@@ -641,8 +641,8 @@ subexpressionTraceValuesArgument ann tt t m _c used sId sT ri =
                     (CellReference inCol ri,)
                       <$> maybe
                         (Left (ErrorMessage ann "subexpressionTraceValuesArgument: input subexpression id"))
-                        (pure . (^. #value))
-                        ( Map.lookup ri (t ^. #subexpressions)
+                        (pure . (^. _2 . #value))
+                        ( Map.lookup c (t ^. #subexpressions)
                             >>= Map.lookup inId
                         )
                   let x1 = (CellReference sIdCol ri, inId ^. #unSubexpressionId)
