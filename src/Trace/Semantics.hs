@@ -21,6 +21,7 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (pack)
+import Halo2.Circuit (getCellMapRows, getRowSet, fixedValuesToCellMap)
 import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnIndex (ColumnIndex)
@@ -28,7 +29,7 @@ import Halo2.Types.FixedValues (FixedValues)
 import Halo2.Types.InputExpression (InputExpression)
 import Halo2.Types.LookupArgument (LookupArgument)
 import Halo2.Types.LookupArguments (LookupArguments)
-import Halo2.Types.LookupTableColumn (LookupTableColumn)
+import Halo2.Types.LookupTableColumn (LookupTableColumn (LookupTableColumn))
 import Halo2.Types.Polynomial (Polynomial)
 import Halo2.Types.PolynomialConstraints (PolynomialConstraints)
 import Halo2.Types.PolynomialVariable (PolynomialVariable)
@@ -429,26 +430,41 @@ getLookupTable ::
   Set LookupTableColumn ->
   Either (ErrorMessage ann) [Map LookupTableColumn Scalar]
 getLookupTable ann tt t gc cs =
-  fmap mconcat . forM (Map.toList (t ^. #subexpressions)) $ \(c, ss) ->
-    forM (Map.toList ss) $ \(sId, (ri, sT)) -> do
-      lc <- getSubexpressionEvaluationContext ann tt t gc (c, sId, sT)
-      Map.fromList
-        <$> sequence
-          [ maybe
-              ( maybe
-                  ( Left
-                      ( ErrorMessage
-                          ann
-                          ( "lookup table has a hole: "
-                              <> pack (show (c, col))
-                          )
-                      )
-                  )
-                  (pure . (col,))
-                  (Map.lookup (ri, col ^. #unLookupTableColumn)
-                    (lc ^. #globalMappings))
-              )
-              (pure . (col,))
-              (Map.lookup (col ^. #unLookupTableColumn) (lc ^. #localMappings))
-            | col <- Set.toList cs
-          ]
+  let rowSet :: Set (RowIndex Absolute)
+      rowSet = getRowSet (tt ^. #rowCount) Nothing
+      traceTypeFixedValues :: FixedValues (RowIndex Absolute)
+      traceTypeFixedValues = mconcat . Map.elems
+                               $ (tt ^. #stepTypes) <&> (^. #fixedValues)
+      traceTypeFixedRows :: Map (RowIndex Absolute) (Map ColumnIndex Scalar)
+      traceTypeFixedRows = getCellMapRows rowSet
+                             (fixedValuesToCellMap traceTypeFixedValues)
+      lookupTableFixedRows :: [Map LookupTableColumn Scalar]
+      lookupTableFixedRows =
+        Map.elems $
+          Map.mapKeys LookupTableColumn
+            . flip Map.restrictKeys (Set.map (^. #unLookupTableColumn) cs)
+            <$> traceTypeFixedRows
+  in fmap (zipWith (<>) lookupTableFixedRows . mconcat)
+       . forM (Map.toList (t ^. #subexpressions)) $ \(c, ss) ->
+         forM (Map.toList ss) $ \(sId, (ri, sT)) -> do
+           lc <- getSubexpressionEvaluationContext ann tt t gc (c, sId, sT)
+           Map.fromList
+             <$> sequence
+               [ maybe
+                   ( maybe
+                       ( Left
+                           ( ErrorMessage
+                               ann
+                               ( "lookup table has a hole: "
+                                   <> pack (show (c, col))
+                               )
+                           )
+                       )
+                       (pure . (col,))
+                       (Map.lookup (ri, col ^. #unLookupTableColumn)
+                         (lc ^. #globalMappings))
+                   )
+                   (pure . (col,))
+                   (Map.lookup (col ^. #unLookupTableColumn) (lc ^. #localMappings))
+                 | col <- Set.toList cs
+               ]
