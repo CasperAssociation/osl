@@ -1076,7 +1076,7 @@ logicCircuitStatementToTraceStatement ann mapping stmt = do
   caseAndColMap <- cellMapToCaseAndColMap ann (stmt ^. #unStatement)
   let maxStepsPerCase = getMaxStepsPerCase (getSubexpressionIdSet (mapping ^. #subexpressionIds))
   pure . Statement $ Map.fromList
-    [ ((ri, ci), x)
+    [ (CellReference ci ri, x)
       | ((c, ci), x) <- Map.toList caseAndColMap,
         ri <- Set.toList $ getCaseRows maxStepsPerCase c
     ]
@@ -1089,7 +1089,7 @@ logicCircuitWitnessToTraceWitness ::
 logicCircuitWitnessToTraceWitness ann mapping witness = do
   caseAndColMap <- cellMapToCaseAndColMap ann (witness ^. #unWitness)
   pure . Witness $ Map.fromList
-    [ ((ri, ci), x)
+    [ (CellReference ci ri, x)
       | ((c, ci), x) <- Map.toList caseAndColMap,
         ri <- Set.toList $ getCaseRows maxStepsPerCase c
     ]

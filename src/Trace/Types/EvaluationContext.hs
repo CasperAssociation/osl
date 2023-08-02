@@ -8,15 +8,15 @@ import Data.Kind (Type)
 import Data.Map (Map)
 import Data.Set (Set)
 import GHC.Generics (Generic)
+import Halo2.Types.CellReference (CellReference)
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.LookupTableColumn (LookupTableColumn)
-import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import OSL.Types.OSL (ContextType (Global, Local))
 import Stark.Types.Scalar (Scalar)
 
 type EvaluationContext :: ContextType -> Type
 data EvaluationContext t = EvaluationContext
-  { globalMappings :: Map (RowIndex Absolute, ColumnIndex) Scalar,
+  { globalMappings :: Map CellReference Scalar,
     localMappings :: Map ColumnIndex Scalar,
     lookupTables :: Map (Set LookupTableColumn) (Set (Map LookupTableColumn Scalar))
   }

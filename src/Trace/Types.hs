@@ -31,6 +31,7 @@ where
 
 import qualified Algebra.Additive as Group
 import Halo2.Prelude
+import Halo2.Types.Argument (Statement (Statement), Witness (Witness))
 import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.ColumnTypes (ColumnTypes)
 import Halo2.Types.EqualityConstrainableColumns (EqualityConstrainableColumns)
@@ -145,12 +146,6 @@ newtype Case = Case {unCase :: Scalar}
   deriving newtype (Show, Group.C)
 
 newtype MaxStepsPerCase = MaxStepsPerCase { unMaxStepsPerCase :: Scalar }
-  deriving (Generic, Show)
-
-newtype Statement = Statement {unStatement :: Map (RowIndex Absolute, ColumnIndex) Scalar}
-  deriving (Generic, Show)
-
-newtype Witness = Witness {unWitness :: Map (RowIndex Absolute, ColumnIndex) Scalar}
   deriving (Generic, Show)
 
 data Trace = Trace

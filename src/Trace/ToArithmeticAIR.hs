@@ -25,6 +25,7 @@ import Data.Maybe (fromMaybe, maybeToList)
 import qualified Data.Set as Set
 import Data.Text (pack)
 import Die (die)
+import Halo2.Circuit (fixedValuesToCellMap)
 import qualified Halo2.Polynomial as P
 import Halo2.Prelude
 import Halo2.Types.AIR (AIR (AIR), ArithmeticAIR)
@@ -317,14 +318,36 @@ traceToArgument ::
   Trace ->
   Either (ErrorMessage ann) Argument
 traceToArgument ann tt lcM t = do
-  mconcat
-    <$> sequence
+  casesArg <- 
+    mconcat <$> sequence
       [ caseArgument ann tt t m fvs airFvs c' ri
         | c <- [0 .. scalarToInteger (tt ^. #numCases . #unNumberOfCases) - 1],
           c' <- maybeToList (Case <$> integerToScalar c),
           ri <- caseRowIndices tt c'
       ]
+  pure (casesArg <> stepTypeFixedValsArg
+                 <> additionalFixedValsArg
+                 <> (Argument (t ^. #statement) (t ^. #witness)
+                 <> zeroArg))
   where
+    stepTypeFixedValsArg =
+      Argument mempty . Witness . mconcat
+        $ Map.elems (tt ^. #stepTypes) <&> (fixedValuesToCellMap . (^. #fixedValues))
+    additionalFixedValsArg =
+      Argument mempty . Witness . fixedValuesToCellMap
+        $ additionalFixedValues tt (mappings tt lcM ^. #fixed)
+    n = maybe
+          (die "Trace.ToArithmeticAIR.traceToArgument: row count exceeds max Int")
+          RowIndex
+          (integerToInt (scalarToInteger (tt ^. #rowCount . #getRowCount)))
+    zeroMap preferredColType = Map.fromList
+      [ (CellReference ci ri, zero)
+        | (ci, colType) <- Map.toList $ columnTypes tt ^. #getColumnTypes,
+          colType == preferredColType,
+          ri <- [0 .. n - 1]
+      ]
+    zeroArg = Argument (Statement (zeroMap Instance))
+                       (Witness (zeroMap Advice <> zeroMap Fixed))
     m = mappings tt lcM
     air = traceTypeToArithmeticAIR tt lcM
     fvs = air ^. #fixedValues
@@ -458,7 +481,7 @@ subexpressionArgument ::
 subexpressionArgument ann tt t m fvs airFvs c ri used sId sT = do
   mconcat
     <$> sequence
-      [ traceTypeFixedValuesArgument ann tt fvs ri,
+      [ pure $ traceTypeFixedValuesArgument tt fvs ri,
         airFixedValuesArgument ann airFvs ri,
         traceStatementValuesArgument ann tt t c ri,
         traceWitnessValuesArgument ann tt t c ri,
@@ -466,38 +489,24 @@ subexpressionArgument ann tt t m fvs airFvs c ri used sId sT = do
       ]
 
 traceTypeFixedValuesArgument ::
-  ann ->
   TraceType ->
   FixedValues (RowIndex 'Absolute) ->
   RowIndex 'Absolute ->
-  Either (ErrorMessage ann) Argument
-traceTypeFixedValuesArgument ann tt fvs ri =
-  mconcat
-    <$> sequence
-      [ Argument mempty . Witness
-          . Map.singleton
-            (CellReference ci ri)
-          <$> maybe
-            ( Left
-                ( ErrorMessage
-                    ann
-                    ( "traceTypeFixedValues: fixed value lookup failed: "
-                        <> pack (show (ci, ri))
-                    )
-                )
-            )
-            pure
-            ( Map.lookup ri
-                =<< ( Map.lookup ci (fvs ^. #getFixedValues)
-                        <&> (^. #unFixedColumn)
-                    )
-            )
-        | ci <-
-            Map.keys $
-              Map.filter
-                (== Fixed)
-                (tt ^. #columnTypes . #getColumnTypes)
-      ]
+  Argument
+traceTypeFixedValuesArgument tt fvs ri =
+  mconcat $
+    [ Argument mempty . Witness
+        $ Map.singleton (CellReference ci ri) x
+      | ci <-
+          Map.keys $
+            Map.filter
+              (== Fixed)
+              (tt ^. #columnTypes . #getColumnTypes),
+        x <- maybeToList $
+          Map.lookup ri
+              =<< ( Map.lookup ci (fvs ^. #getFixedValues)
+                      <&> (^. #unFixedColumn) )
+    ]
 
 airFixedValuesArgument ::
   ann ->
@@ -533,7 +542,7 @@ traceStatementValuesArgument ann tt t _c ri =
             (Left (ErrorMessage ann "traceStatementValuesArgument"))
             pure
             ( Map.lookup
-                (ri, ci)
+                (CellReference ci ri)
                 (t ^. #statement . #unStatement)
             )
         | ci <-
@@ -564,13 +573,13 @@ traceWitnessValuesArgument ann tt t c ri =
             )
             pure
             ( Map.lookup
-                (ri, ci)
+                (CellReference ci ri)
                 (t ^. #witness . #unWitness)
             )
         | ci <-
             Map.keys
               ( Map.filter
-                  (== Advice)
+                  (\ct -> ct == Advice || ct == Fixed)
                   (tt ^. #columnTypes . #getColumnTypes)
               ),
           -- TODO: make this less brittle; we need to select only the advice columns

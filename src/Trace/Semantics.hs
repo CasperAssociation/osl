@@ -158,14 +158,15 @@ evalPolynomialVariable ::
   EvaluationContext 'Local ->
   PolynomialVariable ->
   Either (ErrorMessage ann) Scalar
-evalPolynomialVariable ann c ec v =
+evalPolynomialVariable ann ri ec v =
   case v ^. #rowIndex of
     0 ->
       maybe
         ( maybe
             (Left (ErrorMessage ann "variable not defined in global or local mappings"))
             pure
-            (Map.lookup (c, v ^. #colIndex) (ec ^. #globalMappings))
+            (Map.lookup (CellReference (v ^. #colIndex) ri)
+              (ec ^. #globalMappings))
         )
         pure
         (Map.lookup (v ^. #colIndex) (ec ^. #localMappings))
@@ -227,7 +228,7 @@ checkAllEqualityConstraintsAreSatisfied ::
   Trace ->
   Either (ErrorMessage ann) ()
 checkAllEqualityConstraintsAreSatisfied ann tt t = do
-  cellMap <- getGlobalCellMap <$> getGlobalEvaluationContext ann tt t
+  cellMap <- getGlobalEvaluationContext ann tt t <&> (^. #globalMappings)
   forM_ (tt ^. #equalityConstraints . #getEqualityConstraints) $ \eq -> do
     vs <- mapM (lookupCellReference ann cellMap) (Set.toList (eq ^. #getEqualityConstraint))
     case vs of
@@ -247,15 +248,6 @@ lookupCellReference ann m r =
     pure
     (Map.lookup r m)
 
-getGlobalCellMap ::
-  EvaluationContext t ->
-  Map CellReference Scalar
-getGlobalCellMap ec =
-  Map.fromList
-    [ (CellReference ci ri, x)
-      | ((ri, ci), x) <- Map.toList (ec ^. #globalMappings)
-    ]
-
 addFixedValuesToEvaluationContext ::
   EvaluationContext 'Global ->
   FixedValues (RowIndex Absolute) ->
@@ -265,12 +257,7 @@ addFixedValuesToEvaluationContext ec vs =
   where
     ec' =
       EvaluationContext
-        ( Map.fromList
-            [ ((i, col), x)
-              | (col, vs') <- Map.toList (vs ^. #getFixedValues),
-                (i, x) <- Map.toList $ vs' ^. #unFixedColumn
-            ]
-        )
+        (fixedValuesToCellMap vs)
         mempty
         mempty
 
@@ -303,7 +290,7 @@ getGlobalEvaluationContext ann tt t = do
 getGlobalMappings ::
   TraceType ->
   Trace ->
-  Map (RowIndex Absolute, ColumnIndex) Scalar
+  Map CellReference Scalar
 getGlobalMappings tt t =
   mconcat
     [ t ^. #statement . #unStatement,
@@ -314,10 +301,10 @@ getGlobalMappings tt t =
 getCaseNumberColumnMappings ::
   TraceType ->
   Trace ->
-  Map (RowIndex Absolute, ColumnIndex) Scalar
+  Map CellReference Scalar
 getCaseNumberColumnMappings tt t =
   Map.fromList
-    [((ri, col), c ^. #unCase)
+    [(CellReference col ri, c ^. #unCase)
       | c  <- Set.toList (getUsedCases t),
         ri <- Set.toList (getCaseRows (tt ^. #maxStepsPerCase) c)
     ]
@@ -461,7 +448,7 @@ getLookupTable ann tt t gc cs =
                            )
                        )
                        (pure . (col,))
-                       (Map.lookup (ri, col ^. #unLookupTableColumn)
+                       (Map.lookup (CellReference (col ^. #unLookupTableColumn) ri)
                          (lc ^. #globalMappings))
                    )
                    (pure . (col,))

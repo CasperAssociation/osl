@@ -731,15 +731,27 @@ instance HasEvaluate RowCount () where
       ( f (arg ^. #statement . #unStatement)
           && f (arg ^. #witness . #unWitness)
       )
-      (Left (ErrorMessage ann "argument does not have correct row count"))
+      (Left . ErrorMessage ann
+        $ "argument does not have correct row count in columns: "
+            <> pack (show (badCols (arg ^. #statement . #unStatement)
+                            <> badCols (arg ^. #witness . #unWitness))))
     where
+      allRows = Set.fromList (RowIndex <$> [0 .. n' - 1])
+
       f m =
         let cols = getColumns m
          in and
-              [ Set.fromList (RowIndex <$> [0 .. n' - 1])
-                  == Map.keysSet (getColumn i m)
+              [ allRows == Map.keysSet (getColumn i m)
                 | i <- Set.toList cols
               ]
+
+      badCols m =
+        let cols = getColumns m
+        in [ (ci, take 10 (Set.toList (allRows `Set.difference` colRows)))
+             | ci <- Set.toList cols,
+               let colRows = Map.keysSet (getColumn ci m),
+               allRows /= colRows
+           ]
 
       n' =
         fromMaybe (die "Halo2.Circuit.evaluate: row count out of range of Int") $
