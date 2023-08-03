@@ -25,7 +25,7 @@ import Data.Maybe (fromMaybe, maybeToList)
 import qualified Data.Set as Set
 import Data.Text (pack)
 import Die (die)
-import Halo2.Circuit (fixedValuesToCellMap)
+import Halo2.Circuit (fixedValuesToCellMap, getRowSet)
 import qualified Halo2.Polynomial as P
 import Halo2.Prelude
 import Halo2.Types.AIR (AIR (AIR), ArithmeticAIR)
@@ -57,12 +57,24 @@ import Trace.Types (Case (Case), InputColumnIndex (InputColumnIndex), InputSubex
 traceTypeToArithmeticAIR :: TraceType -> LC.Mapping -> ArithmeticAIR
 traceTypeToArithmeticAIR t lcM =
   AIR
-    (columnTypes t)
+    colTypes
     (gateConstraints t)
     (t ^. #rowCount)
-    (traceTypeFixedValues t <> additionalFixedValues t (m ^. #fixed))
+    ((traceTypeFixedValues t
+      <> additionalFixedValues t (m ^. #fixed))
+      <> zeroFixedValues) -- fill in any gaps with zeroes
   where
     m = mappings t lcM
+    colTypes = columnTypes t
+    zeroFixedValues =
+      FixedValues . Map.fromList $
+        [ (ci, FixedColumn . Map.fromList $
+                 [ (ri, zero)
+                   | ri <- Set.toList (getRowSet (t ^. #rowCount) Nothing)
+                 ])
+          | (ci, ct) <- Map.toList (colTypes ^. #getColumnTypes),
+            ct == Fixed
+        ]
 
 -- Converts the fixed values in the trace type from one per case to
 -- one per row.
@@ -70,7 +82,8 @@ traceTypeFixedValues ::
   TraceType ->
   FixedValues (RowIndex 'Absolute)
 traceTypeFixedValues tt =
-  mconcat
+  ((tt ^. #fixedValues) <>)
+    . mconcat
     . fmap (^. #fixedValues)
     . Map.elems
     $ tt ^. #stepTypes
@@ -325,14 +338,14 @@ traceToArgument ann tt lcM t = do
           c' <- maybeToList (Case <$> integerToScalar c),
           ri <- caseRowIndices tt c'
       ]
-  pure (casesArg <> stepTypeFixedValsArg
+  pure (casesArg <> traceTypeFixedValsArg
                  <> additionalFixedValsArg
                  <> (Argument (t ^. #statement) (t ^. #witness)
                  <> zeroArg))
   where
-    stepTypeFixedValsArg =
-      Argument mempty . Witness . mconcat
-        $ Map.elems (tt ^. #stepTypes) <&> (fixedValuesToCellMap . (^. #fixedValues))
+    traceTypeFixedValsArg =
+      Argument mempty . Witness
+        $ fixedValuesToCellMap (traceTypeFixedValues tt)
     additionalFixedValsArg =
       Argument mempty . Witness . fixedValuesToCellMap
         $ additionalFixedValues tt (mappings tt lcM ^. #fixed)

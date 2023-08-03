@@ -5,14 +5,16 @@
 module OSL.Spec.SumSpec (spec) where
 
 import Control.Lens ((^.))
+import Control.Monad.Trans.Except (runExceptT)
 import qualified Data.Map as Map
+import Halo2.ProverClient (Port (Port))
 import Halo2.Types.BitsPerByte (BitsPerByte)
 import Halo2.Types.RowCount (RowCount)
 import OSL.ArgumentForm (getArgumentForm)
 import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
-import OSL.TranslatedEvaluation (evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10)
+import OSL.TranslatedEvaluation (evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10, evalTranslatedFormula11)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
@@ -136,6 +138,16 @@ exampleSpec c = do
     it "a negative case" $
       evalTranslatedFormula10 (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleUnsoundArgument c)
         `shouldBe` Left (ErrorMessage Nothing "evaluate: \"assert\": not satisfied on the following rows: [(19,Just 1)] out of 257")
+
+  describe "sum spec's semantics are preserved in codegen stage 11" $ do
+    it "a positive case" $ do
+      result <- runExceptT $ evalTranslatedFormula11 "./mock-prover-3" (Port 1789) (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleArgument c)
+      result `shouldBe` Right ()
+
+    it "a negative case" $ do
+      result <- runExceptT $ evalTranslatedFormula11 "./mock-prover-4" (Port 1790) (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleUnsoundArgument c)
+      result `shouldBe` Left (ErrorMessage Nothing "mockProve: mock prover returned error: ConnectionError (HttpExceptionRequest Request {\n  host                 = \"127.0.0.1\"\n  port                 = 1790\n  secure               = False\n  requestHeaders       = [(\"Accept\",\"text/plain;charset=utf-8\"),(\"Content-Type\",\"application/json;charset=utf-8\")]\n  path                 = \"/mock_prove\"\n  queryString          = \"\"\n  method               = \"POST\"\n  proxy                = Nothing\n  rawBody              = False\n  redirectCount        = 10\n  responseTimeout      = ResponseTimeoutDefault\n  requestVersion       = HTTP/1.1\n  proxySecureMode      = ProxySecureWithConnect\n}\n NoResponseDataReceived)")
+
 
 complexStatementType :: Type ()
 complexStatementType =
