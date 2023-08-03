@@ -42,6 +42,7 @@ import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 import Safe (atMay)
 import Stark.Types.Scalar (Scalar, integerToScalar, one, scalarToInt, scalarToInteger, zero)
+import Trace (getTraceTypeFixedValues)
 import Trace.FromLogicCircuit (getDefaultAdvice)
 import qualified Trace.FromLogicCircuit as LC
 import Trace.Types (Case (Case), InputColumnIndex (InputColumnIndex), InputSubexpressionId (InputSubexpressionId), OutputSubexpressionId (OutputSubexpressionId), ResultExpressionId, StepType, StepTypeId, StepTypeIdSelectionVector, SubexpressionId (SubexpressionId), SubexpressionLink (SubexpressionLink), SubexpressionTrace (SubexpressionTrace), Trace, TraceType)
@@ -60,7 +61,7 @@ traceTypeToArithmeticAIR t lcM =
     colTypes
     (gateConstraints t)
     (t ^. #rowCount)
-    ((traceTypeFixedValues t
+    ((getTraceTypeFixedValues t
       <> additionalFixedValues t (m ^. #fixed))
       <> zeroFixedValues) -- fill in any gaps with zeroes
   where
@@ -75,18 +76,6 @@ traceTypeToArithmeticAIR t lcM =
           | (ci, ct) <- Map.toList (colTypes ^. #getColumnTypes),
             ct == Fixed
         ]
-
--- Converts the fixed values in the trace type from one per case to
--- one per row.
-traceTypeFixedValues ::
-  TraceType ->
-  FixedValues (RowIndex 'Absolute)
-traceTypeFixedValues tt =
-  ((tt ^. #fixedValues) <>)
-    . mconcat
-    . fmap (^. #fixedValues)
-    . Map.elems
-    $ tt ^. #stepTypes
 
 columnTypes :: TraceType -> ColumnTypes
 columnTypes t =
@@ -345,7 +334,7 @@ traceToArgument ann tt lcM t = do
   where
     traceTypeFixedValsArg =
       Argument mempty . Witness
-        $ fixedValuesToCellMap (traceTypeFixedValues tt)
+        $ fixedValuesToCellMap (getTraceTypeFixedValues tt)
     additionalFixedValsArg =
       Argument mempty . Witness . fixedValuesToCellMap
         $ additionalFixedValues tt (mappings tt lcM ^. #fixed)

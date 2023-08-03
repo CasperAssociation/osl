@@ -37,7 +37,7 @@ import Halo2.Types.PowerProduct (PowerProduct)
 import Halo2.Types.RowIndex (RowIndex, RowIndexType (Absolute))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 import Stark.Types.Scalar (Scalar, one, zero)
-import Trace (getCaseRows)
+import Trace (getCaseRows, getTraceTypeFixedValues)
 import Trace.Types (Case, OutputSubexpressionId (..), ResultExpressionId (ResultExpressionId), StepType, SubexpressionId, SubexpressionTrace, Trace, TraceType)
 import Trace.Types.EvaluationContext (ContextType (Global, Local), EvaluationContext (EvaluationContext))
 
@@ -420,8 +420,7 @@ getLookupTable ann tt t gc cs =
   let rowSet :: Set (RowIndex Absolute)
       rowSet = getRowSet (tt ^. #rowCount) Nothing
       traceTypeFixedValues :: FixedValues (RowIndex Absolute)
-      traceTypeFixedValues = mconcat . Map.elems
-                               $ (tt ^. #stepTypes) <&> (^. #fixedValues)
+      traceTypeFixedValues = getTraceTypeFixedValues tt
       traceTypeFixedRows :: Map (RowIndex Absolute) (Map ColumnIndex Scalar)
       traceTypeFixedRows = getCellMapRows rowSet
                              (fixedValuesToCellMap traceTypeFixedValues)

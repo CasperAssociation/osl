@@ -1116,17 +1116,6 @@ cellMapToCaseAndColMap ann cellMap =
         | (CellReference col row, x) <- Map.toList cellMap
       ]
 
--- TODO:
---  [x] extend row count to at least enough to fit all fixed tables;
---  [x] extend all fixed tables to row count using last row replication;
---  [x] replicate circuit fixed values to translate from case indexing to
---      row indexing
---  This strategy won't work as outlined! It may break reliance of the
---  logic circuit on the structure of the cases.
---   * Disagree, because non-local references (references to a different
---     row or case) rely entirely on lookups and not relative row referencing
---  How will it play with argument generation?
---   * Just simply replicate the last row of the instance / witness up to the row count?
 logicCircuitToTraceType ::
   BitsPerByte ->
   LogicCircuit ->
