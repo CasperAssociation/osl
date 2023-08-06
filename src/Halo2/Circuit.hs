@@ -612,7 +612,7 @@ instance
         inputs = zip inputTable (snd <$> tableMap)
         tableCols = Set.fromList ((^. #unLookupTableColumn) . snd <$> tableMap)
         rows = Set.map (^. #rowIndex) (Map.keysSet cellMap)
-        lookupTbl = Set.fromList (take 1 (Map.elems (getCellMapRows rows (Map.filterWithKey (\k _ -> (k ^. #colIndex) `Set.member` tableCols) cellMap))))
+        lookupTbl = Set.fromList (Map.elems (getCellMapRows rows (Map.filterWithKey (\k _ -> (k ^. #colIndex) `Set.member` tableCols) cellMap)))
     results <-
       getLookupResults
         ann

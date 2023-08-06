@@ -16,6 +16,10 @@ module OSL.TranslatedEvaluation
   )
 where
 
+import Debug.Trace (trace)
+import qualified Data.Map as Map
+import Trace.Types (Case (Case))
+
 import Control.Lens ((^.))
 import Control.Monad.Trans.Except (ExceptT, except, withExceptT)
 import Data.Either.Extra (mapLeft)
@@ -321,7 +325,7 @@ evalTranslatedFormula7 rowCount bitsPerByte c name argumentForm argument = do
       (argumentToTrace Nothing bitsPerByte logic tt lcArg)
   mapLeft
     (\(ErrorMessage ann msg) -> ErrorMessage ann ("evalTrace: " <> msg))
-    (evalTrace Nothing tt t)
+    (evalTrace Nothing tt (trace ("arg: " <> show lcArg <> "\ntrace: " <> show (Map.lookup (Case 2) (t ^. #subexpressions))) t))
 
 -- Eighth codegen pass: TraceType -> ArithmeticCircuit
 evalTranslatedFormula8 ::
