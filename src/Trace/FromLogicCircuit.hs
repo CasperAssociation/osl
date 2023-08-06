@@ -224,11 +224,11 @@ argumentToTrace ann bitsPerByte lc tt arg = do
       (pure . (^. #unOf))
       (mapping ^. #subexpressionIds . #void)
   Trace
-    <$> logicCircuitStatementToTraceStatement ann mapping (arg ^. #statement)
-    <*> logicCircuitWitnessToTraceWitness ann mapping (arg ^. #witness)
+    <$> logicCircuitStatementToTraceStatement ann maxStepsPerCase (arg ^. #statement)
+    <*> logicCircuitWitnessToTraceWitness ann maxStepsPerCase (arg ^. #witness)
     <*> ( Map.unionWith (<>)
             (voidSubexpressionTraces usedCases voidId)
-            <$> argumentSubexpressionTraces ann lc arg mapping usedCases
+            <$> argumentSubexpressionTraces ann lc maxStepsPerCase arg mapping usedCases
         )
   where
     voidSubexpressionTraces usedCases voidId =
@@ -247,6 +247,8 @@ argumentToTrace ann bitsPerByte lc tt arg = do
 
     mapping = getMapping bitsPerByte lc
 
+    maxStepsPerCase = getMaxStepsPerCase (getSubexpressionIdSet (mapping ^. #subexpressionIds))
+
 logicCircuitUsedCases ::
   ann ->
   LogicCircuit ->
@@ -264,6 +266,7 @@ logicCircuitUsedCases ann lc =
 argumentSubexpressionTraces ::
   ann ->
   LogicCircuit ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   Set Case ->
@@ -271,15 +274,11 @@ argumentSubexpressionTraces ::
     (ErrorMessage ann)
     (Map Case
        (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)))
-argumentSubexpressionTraces ann lc arg mapping cases = do
-  let maxStepsPerCase =
-        getMaxStepsPerCase
-          (getSubexpressionIdSet
-            (mapping ^. #subexpressionIds))
+argumentSubexpressionTraces ann lc maxStepsPerCase arg mapping cases = do
   tables <- getLookupCaches ann lc arg
   Map.unionsWith (<>)
     <$> mapM
-      (uncurry (caseArgumentSubexpressionTraces ann lc arg mapping tables))
+      (uncurry (caseArgumentSubexpressionTraces ann lc maxStepsPerCase arg mapping tables))
       [ (c, ri)
         | c <- Set.toList cases,
           ri <- maybeToList . listToMaybe . drop 1 . Set.toList
@@ -290,16 +289,17 @@ caseArgumentSubexpressionTraces ::
   forall ann.
   ann ->
   LogicCircuit ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   LookupCaches ->
   Case ->
   RowIndex Absolute ->
   Either (ErrorMessage ann) (Map Case (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)))
-caseArgumentSubexpressionTraces ann lc arg mapping tables c ri = do
+caseArgumentSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c ri = do
   let addLCTraces :: (RowIndex Absolute, Map Case (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace))) -> LogicConstraint -> Either (ErrorMessage ann) (RowIndex Absolute, Map Case (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)))
       addLCTraces (ri', ts) = fmap (\(ri'',ts',_,_) -> (ri'', Map.unionWith (<>) ts ts'))
-        . topLevelLogicConstraintSubexpressionTraces ann lc arg mapping tables c ri'
+        . topLevelLogicConstraintSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c ri'
       addLkupTraces (ri', ts) = fmap (second (Map.unionWith (<>) ts))
         . lookupArgumentSubexpressionTraces ann lc arg mapping tables c ri'
   (ri', ts) <- foldM addLCTraces (ri, mempty)
@@ -321,6 +321,7 @@ getAssertionSubexpressionId ann mapping inId =
 topLevelLogicConstraintSubexpressionTraces ::
   ann ->
   LogicCircuit ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   LookupCaches ->
@@ -334,9 +335,9 @@ topLevelLogicConstraintSubexpressionTraces ::
       (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)),
       SubexpressionId,
       Scalar)
-topLevelLogicConstraintSubexpressionTraces ann lc arg mapping caches c ri p = do
+topLevelLogicConstraintSubexpressionTraces ann lc maxStepsPerCase arg mapping caches c ri p = do
   (ri', m, sId, _) <-
-    logicConstraintSubexpressionTraces ann lc arg mapping caches c ri p
+    logicConstraintSubexpressionTraces ann lc maxStepsPerCase arg mapping caches c ri p
   OutputSubexpressionId sId' <-
     getAssertionSubexpressionId ann mapping (InputSubexpressionId sId)
   pure
@@ -360,6 +361,7 @@ topLevelLogicConstraintSubexpressionTraces ann lc arg mapping caches c ri p = do
 logicConstraintSubexpressionTraces ::
   ann ->
   LogicCircuit ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   LookupCaches ->
@@ -371,7 +373,7 @@ logicConstraintSubexpressionTraces ::
      Map Case (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)),
      SubexpressionId,
      Scalar)
-logicConstraintSubexpressionTraces ann lc arg mapping tables c ri =
+logicConstraintSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c ri =
   \case
     LC.Atom (LC.Equals x y) -> do
       (ri', m0, s0, x') <- term ri x
@@ -489,8 +491,8 @@ logicConstraintSubexpressionTraces ann lc arg mapping tables c ri =
             sId,
             zero)
   where
-    rec = logicConstraintSubexpressionTraces ann lc arg mapping tables c
-    term = logicTermSubexpressionTraces ann lc arg mapping tables c
+    rec = logicConstraintSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c
+    term = logicTermSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c
     defaultAdvice = getDefaultAdvice mapping
 
 withTrace :: Show a => a -> Either (ErrorMessage ann) b -> Either (ErrorMessage ann) b
@@ -713,6 +715,7 @@ getConstraintSubexpressionId ann mapping =
 logicTermSubexpressionTraces ::
   ann ->
   LogicCircuit ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   LookupCaches ->
@@ -725,7 +728,7 @@ logicTermSubexpressionTraces ::
        (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)),
      SubexpressionId,
      Scalar)
-logicTermSubexpressionTraces ann lc arg mapping tables c ri =
+logicTermSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c ri =
   \case
     LC.Plus x y -> do
       (ri', m0, s0, x') <- rec ri x
@@ -793,9 +796,9 @@ logicTermSubexpressionTraces ann lc arg mapping tables c ri =
     LC.Var x -> var ri x
     LC.Lookup is o -> lkup ri is o
   where
-    rec = logicTermSubexpressionTraces ann lc arg mapping tables c
-    var = polyVarSubexpressionTraces ann numCases arg mapping c
-    lkup = lookupTermSubexpressionTraces ann lc arg mapping tables c
+    rec = logicTermSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c
+    var = polyVarSubexpressionTraces ann numCases maxStepsPerCase arg mapping c
+    lkup = lookupTermSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c
     constant = constantSubexpressionTraces ann mapping c
     defaultAdvice = getDefaultAdvice mapping
     numCases = NumberOfCases (lc ^. #rowCount . #getRowCount)
@@ -825,6 +828,7 @@ constantSubexpressionTraces ann mapping c ri x = do
 polyVarSubexpressionTraces ::
   ann ->
   NumberOfCases ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   Case ->
@@ -835,10 +839,10 @@ polyVarSubexpressionTraces ::
      Map Case (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)),
      SubexpressionId,
      Scalar)
-polyVarSubexpressionTraces ann numCases arg mapping c ri x =
+polyVarSubexpressionTraces ann numCases maxStepsPerCase arg mapping c ri x =
   if x ^. #rowIndex == 0
     then polyVarSameCaseSubexpressionTraces ann numCases arg mapping c ri x
-    else polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x
+    else polyVarDifferentCaseSubexpressionTraces ann numCases maxStepsPerCase arg mapping c ri x
 
 polyVarSameCaseSubexpressionTraces ::
   ann ->
@@ -912,6 +916,7 @@ polyVarValue ann (NumberOfCases numCases) arg c v = do
 polyVarDifferentCaseSubexpressionTraces ::
   ann ->
   NumberOfCases ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   Case ->
@@ -923,7 +928,7 @@ polyVarDifferentCaseSubexpressionTraces ::
        (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)),
      SubexpressionId,
      Scalar)
-polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x = do
+polyVarDifferentCaseSubexpressionTraces ann numCases maxStepsPerCase arg mapping c ri x = do
   (ri', m0, _, _) <- constant c ri (rowIndexToScalar (x ^. #rowIndex))
   st <-
     maybe
@@ -942,18 +947,21 @@ polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x = do
   let c' = c Group.+
               Case (fromMaybe (die "Trace.FromLogicCircuit.polyVarDifferentCaseSubexpressionTraces: could not relative row index to Case")
                  (integerToScalar (intToInteger (x ^. #rowIndex . #getRowIndex))))
-  (ri'', m2, _, _) <-
+      ri'' = fromMaybe (die "Trace.FromLogicCircuit.polyVarDifferentCaseSubexpressionTraces: could not get same case variable row index")
+               . listToMaybe . drop (x ^. #colIndex . #getColumnIndex)
+               . Set.toList $ getCaseRows maxStepsPerCase c'
+  (_, m2, _, _) <-
     polyVarSameCaseSubexpressionTraces
       ann
       numCases
       arg
       mapping
       c'
-      ri'
+      ri''
       (PolynomialVariable (x ^. #colIndex) 0)
   let m3 = Map.singleton c $
              Map.singleton sId (ri'', SubexpressionTrace v st advice)
-  pure (ri''+1, Map.unionsWith (<>) [m0, m2, m3], sId, v)
+  pure (ri'+1, Map.unionsWith (<>) [m0, m2, m3], sId, v)
   where
     constant = constantSubexpressionTraces ann mapping
     defaultAdvice = getDefaultAdvice mapping
@@ -982,6 +990,7 @@ polyVarDifferentCaseSubexpressionTraces ann numCases arg mapping c ri x = do
 lookupTermSubexpressionTraces ::
   ann ->
   LogicCircuit ->
+  MaxStepsPerCase ->
   LC.Argument ->
   Mapping ->
   LookupCaches ->
@@ -995,7 +1004,7 @@ lookupTermSubexpressionTraces ::
       (Map SubexpressionId (RowIndex Absolute, SubexpressionTrace)),
       SubexpressionId,
       Scalar)
-lookupTermSubexpressionTraces ann lc arg mapping tables c ri lookupArg outCol = do
+lookupTermSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c ri lookupArg outCol = do
   (ri', inputs') <-
     second (Map.fromList
       . zip ((^. _2) <$> lookupArg))
@@ -1072,7 +1081,7 @@ lookupTermSubexpressionTraces ann lc arg mapping tables c ri lookupArg outCol = 
              Map.singleton sId (ri', SubexpressionTrace v st defaultAdvice)
   pure (ri'+1, Map.unionWith (<>) m' (Map.unionsWith (<>) (Map.elems ms)), sId, v)
   where
-    term = logicTermSubexpressionTraces ann lc arg mapping tables c 
+    term = logicTermSubexpressionTraces ann lc maxStepsPerCase arg mapping tables c 
     defaultAdvice = getDefaultAdvice mapping
 
 lookupArgumentSubexpressionTraces ::
@@ -1093,12 +1102,11 @@ lookupArgumentSubexpressionTraces ann _ _ _ _ _ _ _ =
 
 logicCircuitStatementToTraceStatement ::
   ann ->
-  Mapping ->
+  MaxStepsPerCase ->
   LC.Statement ->
   Either (ErrorMessage ann) Statement
-logicCircuitStatementToTraceStatement ann mapping stmt = do
+logicCircuitStatementToTraceStatement ann maxStepsPerCase stmt = do
   caseAndColMap <- cellMapToCaseAndColMap ann (stmt ^. #unStatement)
-  let maxStepsPerCase = getMaxStepsPerCase (getSubexpressionIdSet (mapping ^. #subexpressionIds))
   pure . Statement $ Map.fromList
     [ (CellReference ci ri, x)
       | ((c, ci), x) <- Map.toList caseAndColMap,
@@ -1107,20 +1115,16 @@ logicCircuitStatementToTraceStatement ann mapping stmt = do
 
 logicCircuitWitnessToTraceWitness ::
   ann ->
-  Mapping ->
+  MaxStepsPerCase ->
   LC.Witness ->
   Either (ErrorMessage ann) Witness
-logicCircuitWitnessToTraceWitness ann mapping witness = do
+logicCircuitWitnessToTraceWitness ann maxStepsPerCase witness = do
   caseAndColMap <- cellMapToCaseAndColMap ann (witness ^. #unWitness)
   pure . Witness $ Map.fromList
     [ (CellReference ci ri, x)
       | ((c, ci), x) <- Map.toList caseAndColMap,
         ri <- Set.toList $ getCaseRows maxStepsPerCase c
     ]
-  where
-    maxStepsPerCase =
-      getMaxStepsPerCase
-        (getSubexpressionIdSet (mapping ^. #subexpressionIds))
 
 cellMapToCaseAndColMap ::
   ann ->

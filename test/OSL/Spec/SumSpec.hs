@@ -110,7 +110,7 @@ exampleSpec c = do
 
     it "a negative case" $
       evalTranslatedFormula7 (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleUnsoundArgument c)
-        `shouldBe` Left (ErrorMessage Nothing "evalTrace: polynomial constraint not satisfied: (\"assert\",1 + 28948022309329048855892746252171976963363056481941560715954676764349967630336x29,0^1,0,SubexpressionTrace {value = 0, stepType = 21, adviceValues = fromList [(32,0),(33,0),(34,0)]},27,fromList [(5,0),(6,0),(7,0),(8,0),(9,0),(10,0),(11,0),(12,0),(13,0),(14,0),(15,0),(16,0),(17,0),(18,0),(19,0),(20,0),(21,0),(22,0),(23,0),(24,0),(25,0),(26,0),(27,1),(28,0),(29,0),(30,0),(31,0),(32,0),(33,0),(34,0)])")
+        `shouldBe` Left (ErrorMessage Nothing "evalTrace: polynomial constraint not satisfied: (\"assert\",1 + 28948022309329048855892746252171976963363056481941560715954676764349967630336x29,0^1,25,SubexpressionTrace {value = 0, stepType = 21, adviceValues = fromList [(32,0),(33,0),(34,0)]},27,fromList [(5,0),(6,0),(7,0),(8,0),(9,0),(10,0),(11,0),(12,0),(13,0),(14,0),(15,0),(16,0),(17,0),(18,0),(19,0),(20,0),(21,0),(22,0),(23,0),(24,0),(25,0),(26,0),(27,1),(28,0),(29,0),(30,0),(31,0),(32,0),(33,0),(34,0)])")
 
   describe "sum spec's semantics are preserved in codegen stage 8" $ do
     it "a positive case" $

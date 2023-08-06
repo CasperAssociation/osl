@@ -112,13 +112,13 @@ checkPolynomialConstraints ::
   SubexpressionTrace ->
   SubexpressionId ->
   Either (ErrorMessage ann) ()
-checkPolynomialConstraints ann c ec cs sT sId =
+checkPolynomialConstraints ann ri ec cs sT sId =
   sequence_
     [ do
-        z <- evalPolynomial ann c ec c'
+        z <- evalPolynomial ann ri ec c
         unless (z == zero) . Left . ErrorMessage ann $
-          "polynomial constraint not satisfied: " <> pack (show (l, c', c, sT, sId, ec ^. #localMappings))
-      | (l, c') <- cs ^. #constraints
+          "polynomial constraint not satisfied: " <> pack (show (l, c, ri, sT, sId, ec ^. #localMappings))
+      | (l, c) <- cs ^. #constraints
     ]
 
 evalPolynomial ::
