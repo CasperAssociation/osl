@@ -21,7 +21,7 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (pack)
-import Halo2.Circuit (getCellMapRows, getRowSet, fixedValuesToCellMap)
+import Halo2.Circuit (fixedValuesToCellMap, getCellMapRows, getRowSet)
 import Halo2.Types.CellReference (CellReference (CellReference))
 import Halo2.Types.Coefficient (Coefficient)
 import Halo2.Types.ColumnIndex (ColumnIndex)
@@ -165,8 +165,10 @@ evalPolynomialVariable ann ri ec v =
         ( maybe
             (Left (ErrorMessage ann "variable not defined in global or local mappings"))
             pure
-            (Map.lookup (CellReference (v ^. #colIndex) ri)
-              (ec ^. #globalMappings))
+            ( Map.lookup
+                (CellReference (v ^. #colIndex) ri)
+                (ec ^. #globalMappings)
+            )
         )
         pure
         (Map.lookup (v ^. #colIndex) (ec ^. #localMappings))
@@ -234,7 +236,8 @@ checkAllEqualityConstraintsAreSatisfied ann tt t = do
     case vs of
       [] -> pure ()
       (v : _) ->
-        unless (all (== v) vs)
+        unless
+          (all (== v) vs)
           (Left (ErrorMessage ann "equality constraint not satisifed"))
 
 lookupCellReference ::
@@ -304,8 +307,8 @@ getCaseNumberColumnMappings ::
   Map CellReference Scalar
 getCaseNumberColumnMappings tt t =
   Map.fromList
-    [(CellReference col ri, c ^. #unCase)
-      | c  <- Set.toList (getUsedCases t),
+    [ (CellReference col ri, c ^. #unCase)
+      | c <- Set.toList (getUsedCases t),
         ri <- Set.toList (getCaseRows (tt ^. #maxStepsPerCase) c)
     ]
   where
@@ -422,35 +425,40 @@ getLookupTable ann tt t gc cs =
       traceTypeFixedValues :: FixedValues (RowIndex Absolute)
       traceTypeFixedValues = getTraceTypeFixedValues tt
       traceTypeFixedRows :: Map (RowIndex Absolute) (Map ColumnIndex Scalar)
-      traceTypeFixedRows = getCellMapRows rowSet
-                             (fixedValuesToCellMap traceTypeFixedValues)
+      traceTypeFixedRows =
+        getCellMapRows
+          rowSet
+          (fixedValuesToCellMap traceTypeFixedValues)
       lookupTableFixedRows :: [Map LookupTableColumn Scalar]
       lookupTableFixedRows =
         Map.elems $
           Map.mapKeys LookupTableColumn
             . flip Map.restrictKeys (Set.map (^. #unLookupTableColumn) cs)
             <$> traceTypeFixedRows
-  in fmap (zipWith (<>) lookupTableFixedRows . mconcat)
-       . forM (Map.toList (t ^. #subexpressions)) $ \(c, ss) ->
-         forM (Map.toList ss) $ \(sId, (ri, sT)) -> do
-           lc <- getSubexpressionEvaluationContext ann tt t gc (c, sId, sT)
-           Map.fromList
-             <$> sequence
-               [ maybe
-                   ( maybe
-                       ( Left
-                           ( ErrorMessage
-                               ann
-                               ( "lookup table has a hole: "
-                                   <> pack (show (c, col))
-                               )
-                           )
-                       )
-                       (pure . (col,))
-                       (Map.lookup (CellReference (col ^. #unLookupTableColumn) ri)
-                         (lc ^. #globalMappings))
-                   )
-                   (pure . (col,))
-                   (Map.lookup (col ^. #unLookupTableColumn) (lc ^. #localMappings))
-                 | col <- Set.toList cs
-               ]
+   in fmap (zipWith (<>) lookupTableFixedRows . mconcat)
+        . forM (Map.toList (t ^. #subexpressions))
+        $ \(c, ss) ->
+          forM (Map.toList ss) $ \(sId, (ri, sT)) -> do
+            lc <- getSubexpressionEvaluationContext ann tt t gc (c, sId, sT)
+            Map.fromList
+              <$> sequence
+                [ maybe
+                    ( maybe
+                        ( Left
+                            ( ErrorMessage
+                                ann
+                                ( "lookup table has a hole: "
+                                    <> pack (show (c, col))
+                                )
+                            )
+                        )
+                        (pure . (col,))
+                        ( Map.lookup
+                            (CellReference (col ^. #unLookupTableColumn) ri)
+                            (lc ^. #globalMappings)
+                        )
+                    )
+                    (pure . (col,))
+                    (Map.lookup (col ^. #unLookupTableColumn) (lc ^. #localMappings))
+                  | col <- Set.toList cs
+                ]

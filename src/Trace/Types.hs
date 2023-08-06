@@ -145,7 +145,7 @@ newtype Case = Case {unCase :: Scalar}
   deriving stock (Eq, Ord, Generic)
   deriving newtype (Show, Group.C)
 
-newtype MaxStepsPerCase = MaxStepsPerCase { unMaxStepsPerCase :: Scalar }
+newtype MaxStepsPerCase = MaxStepsPerCase {unMaxStepsPerCase :: Scalar}
   deriving (Generic, Show)
 
 data Trace = Trace

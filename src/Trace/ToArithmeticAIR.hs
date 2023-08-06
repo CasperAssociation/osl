@@ -61,18 +61,22 @@ traceTypeToArithmeticAIR t lcM =
     colTypes
     (gateConstraints t)
     (t ^. #rowCount)
-    ((getTraceTypeFixedValues t
-      <> additionalFixedValues t (m ^. #fixed))
-      <> zeroFixedValues) -- fill in any gaps with zeroes
+    ( ( getTraceTypeFixedValues t
+          <> additionalFixedValues t (m ^. #fixed)
+      )
+        <> zeroFixedValues -- fill in any gaps with zeroes
+    )
   where
     m = mappings t lcM
     colTypes = columnTypes t
     zeroFixedValues =
       FixedValues . Map.fromList $
-        [ (ci, FixedColumn . Map.fromList $
-                 [ (ri, zero)
-                   | ri <- Set.toList (getRowSet (t ^. #rowCount) Nothing)
-                 ])
+        [ ( ci,
+            FixedColumn . Map.fromList $
+              [ (ri, zero)
+                | ri <- Set.toList (getRowSet (t ^. #rowCount) Nothing)
+              ]
+          )
           | (ci, ct) <- Map.toList (colTypes ^. #getColumnTypes),
             ct == Fixed
         ]
@@ -320,36 +324,44 @@ traceToArgument ::
   Trace ->
   Either (ErrorMessage ann) Argument
 traceToArgument ann tt lcM t = do
-  casesArg <- 
-    mconcat <$> sequence
-      [ caseArgument ann tt t m fvs airFvs c' ri
-        | c <- [0 .. scalarToInteger (tt ^. #numCases . #unNumberOfCases) - 1],
-          c' <- maybeToList (Case <$> integerToScalar c),
-          ri <- caseRowIndices tt c'
-      ]
-  pure (casesArg <> traceTypeFixedValsArg
-                 <> additionalFixedValsArg
-                 <> (Argument (t ^. #statement) (t ^. #witness)
-                 <> zeroArg))
+  casesArg <-
+    mconcat
+      <$> sequence
+        [ caseArgument ann tt t m fvs airFvs c' ri
+          | c <- [0 .. scalarToInteger (tt ^. #numCases . #unNumberOfCases) - 1],
+            c' <- maybeToList (Case <$> integerToScalar c),
+            ri <- caseRowIndices tt c'
+        ]
+  pure
+    ( casesArg <> traceTypeFixedValsArg
+        <> additionalFixedValsArg
+        <> ( Argument (t ^. #statement) (t ^. #witness)
+               <> zeroArg
+           )
+    )
   where
     traceTypeFixedValsArg =
-      Argument mempty . Witness
-        $ fixedValuesToCellMap (getTraceTypeFixedValues tt)
+      Argument mempty . Witness $
+        fixedValuesToCellMap (getTraceTypeFixedValues tt)
     additionalFixedValsArg =
-      Argument mempty . Witness . fixedValuesToCellMap
-        $ additionalFixedValues tt (mappings tt lcM ^. #fixed)
-    n = maybe
-          (die "Trace.ToArithmeticAIR.traceToArgument: row count exceeds max Int")
-          RowIndex
-          (integerToInt (scalarToInteger (tt ^. #rowCount . #getRowCount)))
-    zeroMap preferredColType = Map.fromList
-      [ (CellReference ci ri, zero)
-        | (ci, colType) <- Map.toList $ columnTypes tt ^. #getColumnTypes,
-          colType == preferredColType,
-          ri <- [0 .. n - 1]
-      ]
-    zeroArg = Argument (Statement (zeroMap Instance))
-                       (Witness (zeroMap Advice <> zeroMap Fixed))
+      Argument mempty . Witness . fixedValuesToCellMap $
+        additionalFixedValues tt (mappings tt lcM ^. #fixed)
+    n =
+      maybe
+        (die "Trace.ToArithmeticAIR.traceToArgument: row count exceeds max Int")
+        RowIndex
+        (integerToInt (scalarToInteger (tt ^. #rowCount . #getRowCount)))
+    zeroMap preferredColType =
+      Map.fromList
+        [ (CellReference ci ri, zero)
+          | (ci, colType) <- Map.toList $ columnTypes tt ^. #getColumnTypes,
+            colType == preferredColType,
+            ri <- [0 .. n - 1]
+        ]
+    zeroArg =
+      Argument
+        (Statement (zeroMap Instance))
+        (Witness (zeroMap Advice <> zeroMap Fixed))
     m = mappings tt lcM
     air = traceTypeToArithmeticAIR tt lcM
     fvs = air ^. #fixedValues
@@ -406,10 +418,13 @@ usedCaseArgument ann tt t m fvs airFvs c ri es = do
   arg0 <- emptyCaseArgument ann tt t m fvs airFvs c ri CaseIsUsed
   args <-
     mapM
-      (\(_ri, (sId, (_ri', sT))) ->
-        subexpressionArgument ann tt t m fvs airFvs c ri CaseIsUsed sId sT)
-      (filter ((== ri) . fst)
-        (zip (caseRowIndices tt c) (Map.toList es)))
+      ( \(_ri, (sId, (_ri', sT))) ->
+          subexpressionArgument ann tt t m fvs airFvs c ri CaseIsUsed sId sT
+      )
+      ( filter
+          ((== ri) . fst)
+          (zip (caseRowIndices tt c) (Map.toList es))
+      )
   pure $ mconcat args <> arg0
 
 unusedCaseArgument ::
@@ -497,17 +512,19 @@ traceTypeFixedValuesArgument ::
   Argument
 traceTypeFixedValuesArgument tt fvs ri =
   mconcat $
-    [ Argument mempty . Witness
-        $ Map.singleton (CellReference ci ri) x
+    [ Argument mempty . Witness $
+        Map.singleton (CellReference ci ri) x
       | ci <-
           Map.keys $
             Map.filter
               (== Fixed)
               (tt ^. #columnTypes . #getColumnTypes),
-        x <- maybeToList $
-          Map.lookup ri
+        x <-
+          maybeToList $
+            Map.lookup ri
               =<< ( Map.lookup ci (fvs ^. #getFixedValues)
-                      <&> (^. #unFixedColumn) )
+                      <&> (^. #unFixedColumn)
+                  )
     ]
 
 airFixedValuesArgument ::

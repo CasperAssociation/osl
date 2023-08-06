@@ -14,7 +14,7 @@ import Die (die)
 import Halo2.Types.FixedValues (FixedValues)
 import Halo2.Types.RowIndex (RowIndex (RowIndex), RowIndexType (Absolute))
 import Stark.Types.Scalar (scalarToInteger)
-import Trace.Types (MaxStepsPerCase (MaxStepsPerCase), Case (Case), TraceType)
+import Trace.Types (Case (Case), MaxStepsPerCase (MaxStepsPerCase), TraceType)
 
 getCaseRows ::
   MaxStepsPerCase ->
@@ -26,12 +26,14 @@ getCaseRows (MaxStepsPerCase n) (Case m) =
     n' =
       fromMaybe (die "Trace.FromLogicCircuit.caseFixedValuesToRowFixedValues: max steps per case > max Int")
         . integerToInt
-        . scalarToInteger $ n
+        . scalarToInteger
+        $ n
 
     m' =
       fromMaybe (die "Trace.FromLogicCircuit.caseFixedValuesToRowFixedValues: case # > max Int")
         . integerToInt
-        . scalarToInteger $ m
+        . scalarToInteger
+        $ m
 
 -- Converts the fixed values in the trace type from one per case to
 -- one per row.

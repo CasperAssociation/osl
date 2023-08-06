@@ -14,13 +14,13 @@ import OSL.ArgumentForm (getArgumentForm)
 import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
-import OSL.TranslatedEvaluation (evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9, evalTranslatedFormula10, evalTranslatedFormula11)
+import OSL.TranslatedEvaluation (evalTranslatedFormula10, evalTranslatedFormula11, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
 import OSL.Types.FileName (FileName (FileName))
-import OSL.Types.OSL (ContextType (Global), Declaration (Defined), Name (Sym), Type (N, Fin, Product), ValidContext)
-import OSL.Types.Value (Value (Nat, Pair', Fin'))
+import OSL.Types.OSL (ContextType (Global), Declaration (Defined), Name (Sym), Type (Fin, N, Product), ValidContext)
+import OSL.Types.Value (Value (Fin', Nat, Pair'))
 import OSL.ValidContext (getNamedTermUnsafe)
 import Stark.Types.Scalar (Scalar)
 import Test.Syd (Spec, describe, expectationFailure, it, liftIO, shouldBe)
@@ -83,7 +83,7 @@ exampleSpec c = do
 
     it "a negative case" $
       evalTranslatedFormula3 c "sumIs" argumentForm (exampleUnsoundArgument c)
-        `shouldBe` Right False 
+        `shouldBe` Right False
 
   describe "sum spec's semantics are preserved in codegen stage 4" $ do
     it "a positive case" $
@@ -92,7 +92,7 @@ exampleSpec c = do
 
     it "a negative case" $
       evalTranslatedFormula4 c "sumIs" argumentForm (exampleUnsoundArgument c)
-        `shouldBe` Right False 
+        `shouldBe` Right False
 
   describe "sum spec's semantics are preserved in codegen stage 6" $ do
     it "a positive case" $
@@ -148,14 +148,16 @@ exampleSpec c = do
       result <- runExceptT $ evalTranslatedFormula11 "./mock-prover-4" (Port 1790) (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleUnsoundArgument c)
       result `shouldBe` Left (ErrorMessage Nothing "mockProve: mock prover returned error: ConnectionError (HttpExceptionRequest Request {\n  host                 = \"127.0.0.1\"\n  port                 = 1790\n  secure               = False\n  requestHeaders       = [(\"Accept\",\"text/plain;charset=utf-8\"),(\"Content-Type\",\"application/json;charset=utf-8\")]\n  path                 = \"/mock_prove\"\n  queryString          = \"\"\n  method               = \"POST\"\n  proxy                = Nothing\n  rawBody              = False\n  redirectCount        = 10\n  responseTimeout      = ResponseTimeoutDefault\n  requestVersion       = HTTP/1.1\n  proxySecureMode      = ProxySecureWithConnect\n}\n NoResponseDataReceived)")
 
-
 complexStatementType :: Type ()
 complexStatementType =
-  Product ()
+  Product
+    ()
     (N ())
-    (Product ()
-      (N ())
-      (Product () (N ()) (Fin () 1)))
+    ( Product
+        ()
+        (N ())
+        (Product () (N ()) (Fin () 1))
+    )
 
 complexWitnessType :: Type ()
 complexWitnessType = Fin () 1
@@ -179,7 +181,7 @@ exampleArgument c =
             (tripleToValue (1, 1, 2))
         )
     )
-    ( Witness (Fin' 0) )
+    (Witness (Fin' 0))
 
 exampleUnsoundArgument :: ValidContext Global ann -> Argument
 exampleUnsoundArgument c =
@@ -191,7 +193,7 @@ exampleUnsoundArgument c =
             (tripleToValue (1, 1, 3))
         )
     )
-    ( Witness (Fin' 0) )
+    (Witness (Fin' 0))
 
 tripleToValue :: (Scalar, Scalar, Scalar) -> Value
 tripleToValue (a, b, c) = Pair' (Nat a) (Pair' (Nat b) (Nat c))

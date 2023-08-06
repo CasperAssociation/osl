@@ -119,18 +119,18 @@ getUniversalTableArgument ::
   Either (ErrorMessage ann) Halo2.Argument
 getUniversalTableArgument ann (RowCount n) f layout vs
   | null uniQs && n' == 1 =
-      pure . Halo2.Argument mempty . Halo2.Witness . rowsToCellMap
-        . Map.singleton (0 :: RowIndex Absolute)
-        $ Map.singleton
-            (layout ^. #dummyRowAdviceColumn . #unDummyRowAdviceColumn)
-            (0 :: Scalar)
+    pure . Halo2.Argument mempty . Halo2.Witness . rowsToCellMap
+      . Map.singleton (0 :: RowIndex Absolute)
+      $ Map.singleton
+        (layout ^. #dummyRowAdviceColumn . #unDummyRowAdviceColumn)
+        (0 :: Scalar)
   | otherwise = do
-      t <- getUniversalTable ann uniQs layout vs
-      if intToInteger (Map.size t) > n'
-        then Left (ErrorMessage ann "universal table size exceeds row count")
-        else
-          Halo2.Argument mempty . Halo2.Witness . rowsToCellMap . Map.fromList
-            <$> pad n' (Map.toList t)
+    t <- getUniversalTable ann uniQs layout vs
+    if intToInteger (Map.size t) > n'
+      then Left (ErrorMessage ann "universal table size exceeds row count")
+      else
+        Halo2.Argument mempty . Halo2.Witness . rowsToCellMap . Map.fromList
+          <$> pad n' (Map.toList t)
   where
     n' = scalarToInteger n
 
