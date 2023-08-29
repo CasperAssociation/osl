@@ -4,9 +4,12 @@ use halo2_proofs::{
   arithmetic::Field,
   circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
   dev::MockProver,
-  poly::Rotation,
-  plonk::{Advice, Any, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, DynamicTable, Error, Expression, Selector},
+  poly::{ commitment::Params, Rotation },
+  plonk::{Advice, Any, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, DynamicTable, Error, Expression, Selector, create_proof, keygen_pk, keygen_vk},
+  transcript::Blake2bWrite,
 };
+use pasta_curves::{vesta, EqAffine};
+use rand_core::OsRng;
 use std::collections::HashMap;
 use std::cmp::{PartialEq, Eq};
 use std::env;

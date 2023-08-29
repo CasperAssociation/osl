@@ -14,7 +14,7 @@ import OSL.ArgumentForm (getArgumentForm)
 import OSL.LoadContext (loadContext)
 import OSL.Satisfaction (satisfiesSimple)
 import OSL.SimplifyType (complexifyValueUnsafe, simplifyType)
-import OSL.TranslatedEvaluation (evalTranslatedFormula10, evalTranslatedFormula11, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9)
+import OSL.TranslatedEvaluation (evalTranslatedFormula10, evalTranslatedFormula11, evalTranslatedFormula12, evalTranslatedFormula3, evalTranslatedFormula4, evalTranslatedFormula6, evalTranslatedFormula7, evalTranslatedFormula8, evalTranslatedFormula9)
 import OSL.Types.Argument (Argument (Argument), Statement (Statement), Witness (Witness))
 import OSL.Types.ArgumentForm (ArgumentForm (ArgumentForm), StatementType (StatementType), WitnessType (WitnessType))
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
@@ -147,6 +147,16 @@ exampleSpec c = do
     it "a negative case" $ do
       result <- runExceptT $ evalTranslatedFormula11 "./mock-prover-4" (Port 1790) (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleUnsoundArgument c)
       result `shouldBe` Left (ErrorMessage Nothing "mockProve: mock prover returned error: ConnectionError (HttpExceptionRequest Request {\n  host                 = \"127.0.0.1\"\n  port                 = 1790\n  secure               = False\n  requestHeaders       = [(\"Accept\",\"text/plain;charset=utf-8\"),(\"Content-Type\",\"application/json;charset=utf-8\")]\n  path                 = \"/mock_prove\"\n  queryString          = \"\"\n  method               = \"POST\"\n  proxy                = Nothing\n  rawBody              = False\n  redirectCount        = 10\n  responseTimeout      = ResponseTimeoutDefault\n  requestVersion       = HTTP/1.1\n  proxySecureMode      = ProxySecureWithConnect\n}\n NoResponseDataReceived)")
+
+  describe "sum spec's semantics are preserved in codegen stage 12" $ do
+    it "a positive case" $ do
+      result <- runExceptT $ evalTranslatedFormula12 "./mock-prover-5" (Port 1791) (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleArgument c)
+      result `shouldBe` Right ()
+
+    it "a negative case" $ do
+      result <- runExceptT $ evalTranslatedFormula12 "./mock-prover-6" (Port 1792) (1 :: RowCount) (8 :: BitsPerByte) c "sumIs" argumentForm (exampleUnsoundArgument c)
+      result `shouldBe` Left (ErrorMessage Nothing "mockProve: mock prover returned error: ConnectionError (HttpExceptionRequest Request {\n  host                 = \"127.0.0.1\"\n  port                 = 1790\n  secure               = False\n  requestHeaders       = [(\"Accept\",\"text/plain;charset=utf-8\"),(\"Content-Type\",\"application/json;charset=utf-8\")]\n  path                 = \"/mock_prove\"\n  queryString          = \"\"\n  method               = \"POST\"\n  proxy                = Nothing\n  rawBody              = False\n  redirectCount        = 10\n  responseTimeout      = ResponseTimeoutDefault\n  requestVersion       = HTTP/1.1\n  proxySecureMode      = ProxySecureWithConnect\n}\n NoResponseDataReceived)")
+
 
 complexStatementType :: Type ()
 complexStatementType =

@@ -10,9 +10,11 @@
 module Halo2.ProverClient
   ( Port (Port),
     mockProve,
+    prove,
     buildProver,
     runProver,
     callMockProver,
+    callProver,
   )
 where
 
@@ -26,6 +28,7 @@ import Control.Monad.Error.Class (MonadError, throwError)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.ByteString (ByteString)
 import Data.List (unfoldr)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -42,7 +45,7 @@ import Halo2.Types.ColumnIndex (ColumnIndex)
 import Halo2.Types.TargetDirectory (TargetDirectory (TargetDirectory))
 import Network.HTTP.Client (defaultManagerSettings, managerResponseTimeout, newManager, responseTimeoutNone)
 import OSL.Types.ErrorMessage (ErrorMessage (ErrorMessage))
-import Servant.API (JSON, PlainText, Post, ReqBody, (:>))
+import Servant.API (JSON, PlainText, OctetStream, Post, ReqBody, (:>))
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv, ClientM, Scheme (Http), client, mkClientEnv, runClientM)
 import Stark.Types.Scalar (Scalar)
 import Turtle (ExitCode (ExitSuccess), empty, shell)
@@ -75,6 +78,28 @@ mockProve c arg target (Port port) = do
   where
     baseUrl = BaseUrl Http "127.0.0.1" port ""
 
+-- Generate and build the Halo2 prover and use it to run the
+-- real prover API.
+prove ::
+  ( MonadIO m,
+    MonadBaseControl IO m,
+    MonadError (ErrorMessage ()) m
+  ) =>
+  ArithmeticCircuit ->
+  Argument ->
+  TargetDirectory ->
+  Port ->
+  m ()
+prove c arg target (Port port) = do
+  buildProver c target
+  withAsync (runProver target (Port port)) $ \server -> do
+    liftIO $ threadDelay 5000000
+    mgr <- liftIO $ newManager defaultManagerSettings {managerResponseTimeout = responseTimeoutNone}
+    callProver (mkClientEnv mgr baseUrl) arg
+    cancel server
+  where
+    baseUrl = BaseUrl Http "127.0.0.1" port ""
+
 -- Generate and build the Halo2 prover.
 buildProver ::
   (MonadIO m, MonadError (ErrorMessage ()) m) =>
@@ -102,7 +127,9 @@ runProver (TargetDirectory target) (Port port) = do
   when (res /= ExitSuccess) . throwError $
     ErrorMessage () "nix develop --command cargo run: was not successful"
 
-type ProverApi = "mock_prove" :> ReqBody '[JSON] EncodedArgument :> Post '[PlainText] Text
+type MockProverApi = "mock_prove" :> ReqBody '[JSON] EncodedArgument :> Post '[PlainText] Text
+
+type ProverApi = "prove" :> ReqBody '[JSON] EncodedArgument :> Post '[OctetStream] ByteString
 
 data EncodedArgument = EncodedArgument
   { instance_data :: Map ColumnIndex [[[Word8]]],
@@ -143,7 +170,10 @@ encodeArgument (Argument (Statement s) (Witness w)) =
     (encodeArgumentData w)
 
 mockProverClient :: EncodedArgument -> ClientM ()
-mockProverClient arg = void $ client (Proxy @ProverApi) arg
+mockProverClient arg = void $ client (Proxy @MockProverApi) arg
+
+proverClient :: EncodedArgument -> ClientM ()
+proverClient arg = void $ client (Proxy @ProverApi) arg
 
 -- Call the mock prover API on a running instance of the
 -- Halo2 prover server.
@@ -158,4 +188,19 @@ callMockProver env arg = do
   res <- liftIO $ runClientM (mockProverClient (encodeArgument arg)) env
   case res of
     Left err -> throwError (ErrorMessage () ("mock prover returned error: " <> pack (show err)))
+    Right _ -> pure ()
+
+-- Call the real prover API on a running instance of the
+-- Halo2 prover server.
+callProver ::
+  ( MonadIO m,
+    MonadError (ErrorMessage ()) m
+  ) =>
+  ClientEnv ->
+  Argument ->
+  m ()
+callProver env arg = do
+  res <- liftIO $ runClientM (proverClient (encodeArgument arg)) env
+  case res of
+    Left err -> throwError (ErrorMessage () ("real prover returned error: " <> pack (show err)))
     Right _ -> pure ()
