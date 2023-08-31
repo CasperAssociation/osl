@@ -4,9 +4,64 @@ pub struct ProverInputs<K, F> where K: Hash + Eq {
     pub advice_data: HashMap<K, Vec<F>>
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct VerifierInputs<K, F> where K: Hash + Eq {
+    pub instance_data: HashMap<K, Vec<F>>,
+    pub proof: Vec<u8>
+}
+
 pub async fn run_server() {
   let args: Vec<String> = env::args().collect();
   let port = u16::from_str(&args[1]).unwrap();
+
+  let verifier_server = warp::path!("verify")
+      .and(warp::post())
+      .and(warp::body::json())
+      .map(|req: VerifierInputs<String, [[u8; 8]; 8]>| {
+          let mut instance_data: Vec<Vec<Fp>> = Vec::new();
+          let mut instance_cols: Vec<&String> = req.instance_data.keys().collect();
+          // TODO: optimize this sorting by pre-parsing the strings
+          instance_cols.sort_by(|a, b| str::parse::<u64>(a).unwrap().cmp(&str::parse::<u64>(b).unwrap()));
+          for i in instance_cols.iter() {
+              let xs: &Vec<[[u8; 8]; 8]> = req.instance_data.get(*i).unwrap();
+              instance_data.push(
+                  xs.iter()
+                    .map(|x: &[[u8; 8]; 8]| {
+                           let mut x_flat: [u8; 64] = [0; 64];
+                           for i in 0..8 {
+                               for j in 0..8 {
+                                   x_flat[i*8 + j] = (*x)[i][j];
+                               }
+                           }
+                           FromUniformBytes::from_uniform_bytes(&x_flat)
+                        }
+                    ).collect()
+              );
+          };
+          let circuit = MyCircuit { advice_data: None };
+          let params: Params<EqAffine> =
+              halo2_proofs::poly::commitment::Params::new(
+                  // TODO: more precise row count
+                  TryInto::<u32>::try_into(ROW_COUNT).unwrap().ilog2()+1 // TODO: no .unwrap()
+              );
+          let vk = keygen_vk(&params, &circuit).unwrap(); // TODO: no .unwrap()
+          let pk = keygen_pk(&params, vk, &circuit).unwrap(); // TODO: no .unwrap()
+          let mut transcript = Blake2bRead::init(&req.proof[..]);
+          let res = verify_proof(&params,
+                                 pk.get_vk(),
+                                 SingleVerifier::new(&params),
+                                 &[instance_data
+                                    .iter()
+                                    .map(|v| v.as_slice())
+                                    .collect::<Vec<&[Fp]>>()
+                                    .as_slice()
+                                 ],
+                                 &mut transcript);
+          match res {
+              Ok(_) => StatusCode::OK,
+              Err(e) => panic!("{:?}", e)
+          }
+      });
 
   let mock_prover_server = warp::path!("mock_prove")
       .and(warp::post())
@@ -130,7 +185,8 @@ pub async fn run_server() {
           transcript.finalize()
       });
 
-  let server = mock_prover_server
+  let server = verifier_server
+      .or(mock_prover_server)
       .or(real_prover_server);
 
   println!("starting OSL prover server on port {}", port);

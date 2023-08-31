@@ -18,6 +18,7 @@ module OSL.TranslatedEvaluation
 where
 
 import Control.Lens ((^.))
+import Control.Monad (void)
 import Control.Monad.Trans.Except (ExceptT, except, withExceptT)
 import Data.Either.Extra (mapLeft)
 import qualified Data.Text as Text
@@ -545,8 +546,8 @@ evalTranslatedFormula12 target port rowCount bitsPerByte c name argumentForm arg
             ErrorMessage Nothing ("mungeArgument: " <> msg)
         )
         (mungeArgument ac' arg')
-  withExceptT
+  void $ withExceptT
     ( \(ErrorMessage () msg) ->
-        ErrorMessage Nothing ("mockProve: " <> (Text.take 1000 msg))
+        ErrorMessage Nothing ("prove: " <> (Text.take 1000 msg))
     )
     (prove ac'' arg'' target port)

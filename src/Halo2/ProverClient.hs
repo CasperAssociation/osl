@@ -6,6 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Halo2.ProverClient
   ( Port (Port),
@@ -27,8 +28,9 @@ import Control.Monad.Base (MonadBase)
 import Control.Monad.Error.Class (MonadError, throwError)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON (toJSON))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.List (unfoldr)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -51,6 +53,9 @@ import Stark.Types.Scalar (Scalar)
 import Turtle (ExitCode (ExitSuccess), empty, shell)
 
 newtype Port = Port Int
+
+instance ToJSON ByteString where
+  toJSON = toJSON . BS.unpack
 
 -- Generate and build the Halo2 prover and use it to run the
 -- mock prover API.
@@ -79,7 +84,7 @@ mockProve c arg target (Port port) = do
     baseUrl = BaseUrl Http "127.0.0.1" port ""
 
 -- Generate and build the Halo2 prover and use it to run the
--- real prover API.
+-- real prover API. Also verifies the proof for good measure.
 prove ::
   ( MonadIO m,
     MonadBaseControl IO m,
@@ -89,14 +94,17 @@ prove ::
   Argument ->
   TargetDirectory ->
   Port ->
-  m ()
+  m ByteString
 prove c arg target (Port port) = do
   buildProver c target
   withAsync (runProver target (Port port)) $ \server -> do
     liftIO $ threadDelay 5000000
     mgr <- liftIO $ newManager defaultManagerSettings {managerResponseTimeout = responseTimeoutNone}
-    callProver (mkClientEnv mgr baseUrl) arg
+    let env = mkClientEnv mgr baseUrl
+    proof <- callProver env arg
+    callVerifier env (arg ^. #statement) proof
     cancel server
+    return proof
   where
     baseUrl = BaseUrl Http "127.0.0.1" port ""
 
@@ -130,6 +138,10 @@ runProver (TargetDirectory target) (Port port) = do
 type MockProverApi = "mock_prove" :> ReqBody '[JSON] EncodedArgument :> Post '[PlainText] Text
 
 type ProverApi = "prove" :> ReqBody '[JSON] EncodedArgument :> Post '[OctetStream] ByteString
+
+type VerifierApi = "verify"
+       :> ReqBody '[JSON] (Map ColumnIndex [[[Word8]]], ByteString)
+       :> Post '[PlainText] Text
 
 data EncodedArgument = EncodedArgument
   { instance_data :: Map ColumnIndex [[[Word8]]],
@@ -170,10 +182,13 @@ encodeArgument (Argument (Statement s) (Witness w)) =
     (encodeArgumentData w)
 
 mockProverClient :: EncodedArgument -> ClientM ()
-mockProverClient arg = void $ client (Proxy @MockProverApi) arg
+mockProverClient = void . client (Proxy @MockProverApi)
 
-proverClient :: EncodedArgument -> ClientM ()
-proverClient arg = void $ client (Proxy @ProverApi) arg
+proverClient :: EncodedArgument -> ClientM ByteString
+proverClient = client (Proxy @ProverApi)
+
+verifierClient :: Map ColumnIndex [[[Word8]]] -> ByteString -> ClientM ()
+verifierClient stmt proof = void $ client (Proxy @VerifierApi) (stmt, proof)
 
 -- Call the mock prover API on a running instance of the
 -- Halo2 prover server.
@@ -198,9 +213,25 @@ callProver ::
   ) =>
   ClientEnv ->
   Argument ->
-  m ()
+  m ByteString
 callProver env arg = do
   res <- liftIO $ runClientM (proverClient (encodeArgument arg)) env
   case res of
     Left err -> throwError (ErrorMessage () ("real prover returned error: " <> pack (show err)))
-    Right _ -> pure ()
+    Right proof -> pure proof
+
+-- Call the verifier API on a running instance of the Halo2
+-- prover server.
+callVerifier ::
+  ( MonadIO m,
+    MonadError (ErrorMessage ()) m
+  ) =>
+  ClientEnv ->
+  Statement ->
+  ByteString ->
+  m ()
+callVerifier env stmt proof = do
+  res <- liftIO $ runClientM (verifierClient (encodeArgumentData (stmt ^. #unStatement)) proof) env
+  case res of
+    Left err -> throwError (ErrorMessage () ("verifier returned error: " <> pack (show err)))
+    Right () -> pure ()

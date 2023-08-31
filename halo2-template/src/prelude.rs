@@ -5,9 +5,10 @@ use halo2_proofs::{
   circuit::{SimpleFloorPlanner, Layouter, Cell, RegionIndex, Value},
   dev::MockProver,
   poly::{ commitment::Params, Rotation },
-  plonk::{Advice, Any, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, DynamicTable, Error, Expression, Selector, create_proof, keygen_pk, keygen_vk},
-  transcript::Blake2bWrite,
+  plonk::{Advice, Any, Assigned, Fixed, Instance, Circuit, Column, Constraint, Constraints, ConstraintSystem, DynamicTable, Error, Expression, Selector, SingleVerifier, create_proof, keygen_pk, keygen_vk, verify_proof},
+  transcript::{ Blake2bWrite, Blake2bRead },
 };
+use http::status::StatusCode;
 use pasta_curves::{vesta, EqAffine};
 use rand_core::OsRng;
 use std::collections::HashMap;
