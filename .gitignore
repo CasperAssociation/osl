@@ -3,3 +3,4 @@ result
 .stack-work
 stack.yaml.lock
 mock-prover*/
+prover*/

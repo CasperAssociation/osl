@@ -1,94 +1,97 @@
 {
-  nixConfig.bash-prompt = "[nix-develop-osl:] ";
-  description = "Open Specification Language compiler";
+  description = "srid/haskell-template: Nix template for Haskell projects";
   inputs = {
-    flake-utils = {
-      url = "github:numtide/flake-utils";
-    };
-    flake-compat-ci.url = "github:hercules-ci/flake-compat-ci";
-    lint-utils = {
-      url = "git+https://gitlab.homotopic.tech/nix/lint-utils";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    horizon-platform = {
-      url = "git+https://gitlab.homotopic.tech/horizon/horizon-platform";
-    };
-    libgit-src = {
-      url = "github:vincenthz/hs-libgit";
-      flake = false;
-    };
+    systems.url = "github:nix-systems/default";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    haskell-flake.url = "github:srid/haskell-flake";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+    treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
-  outputs =
-    inputs@
-    { self
-    , flake-utils
-    , flake-compat-ci
-    , horizon-platform
-    , libgit-src
-    , lint-utils
-    , nixpkgs
-    , ...
-    }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" ] (system:
-    let
-      pkgs = import nixpkgs { inherit system; };
-      lintPkgs = import lint-utils.inputs.nixpkgs { inherit system; };
-      hsPkgs =
-        with pkgs.haskell.lib;
-        horizon-platform.legacyPackages.${system}.extend (hfinal: hprev: {
-           libgit = hprev.callCabal2nix "libgit" libgit-src { };
-           osl = dontHaddock (dontCheck (disableLibraryProfiling (hprev.callCabal2nix "osl" ./. { })));
-           osl-spec = disableLibraryProfiling (hprev.callCabal2nix "osl:spec" ./. { });
-        });
-      ormolu-check =
-        pkgs.stdenv.mkDerivation {
-          name = "ormolu-check";
-          src = ./.;
-          doCheck = true;
-          buildPhase = ''
-            ${pkgs.git.outPath}/bin/git init
-            ${pkgs.git.outPath}/bin/git add -A
-            ${pkgs.git.outPath}/bin/git config user.email "foo@bar.com"
-            ${pkgs.git.outPath}/bin/git config user.name "Foobar"
-            ${pkgs.git.outPath}/bin/git commit -m "initial commit"
-            ${pkgs.ormolu.outPath}/bin/ormolu -m inplace $(find ./. -type f -name '*.hs')
-            if [ -z "$(${pkgs.git.outPath}/bin/git status --porcelain)" ]; then
-              echo "ok"
-            else
-              echo "ormolu check failed"
-              exit 1
-            fi
-          '';
-          installPhase = ''
-            mkdir -p $out
-          '';
-        };
-    in
-    {
-      devShells.default = hsPkgs.osl.env.overrideAttrs (attrs: {
-        buildInputs = attrs.buildInputs ++ [
-          hsPkgs.cabal-install
-          pkgs.nixpkgs-fmt
-          hsPkgs.ghcid
-          pkgs.ormolu
-          hsPkgs.hlint
-        ];
-      });
-      packages.default = hsPkgs.osl;
-      packages.ormolu-check = ormolu-check;
-      ciNix = flake-compat-ci.lib.recurseIntoFlakeWith {
-        flake = self;
-        systems = [ "x86_64-linux" ];
-      };
-      checks =
-        with lint-utils.outputs.linters.${system};
-        {
-          hlint = hlint self;
-          hpack = hpack self;
-          inherit ormolu-check;
-          spec = hsPkgs.osl-spec;
-        };
-    });
 
+  outputs = inputs:
+    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = import inputs.systems;
+      imports = [
+        inputs.haskell-flake.flakeModule
+        inputs.treefmt-nix.flakeModule
+      ];
+      perSystem = { self', system, lib, config, pkgs, ... }: {
+        # Our only Haskell project. You can have multiple projects, but this template
+        # has only one.
+        # See https://github.com/srid/haskell-flake/blob/master/example/flake.nix
+        haskellProjects.default = {
+          # The base package set (this value is the default)
+          # basePackages = pkgs.haskellPackages;
+
+          # Packages to add on top of `basePackages`
+          packages = {
+            # Add source or Hackage overrides here
+            # (Local packages are added automatically)
+            /*
+            aeson.source = "1.5.0.0" # Hackage version
+            shower.source = inputs.shower; # Flake input
+            */
+          };
+
+          # Add your package overrides here
+          settings = {
+            /*
+            haskell-template = {
+              haddock = false;
+            };
+            aeson = {
+              check = false;
+            };
+            */
+          };
+
+          # Development shell configuration
+          devShell = {
+            hlsCheck.enable = false;
+          };
+
+          # What should haskell-flake add to flake outputs?
+          autoWire = [ "packages" "apps" "checks" ]; # Wire all but the devShell
+        };
+
+        # Auto formatters. This also adds a flake check to ensure that the
+        # source tree was auto formatted.
+        treefmt.config = {
+          projectRootFile = "flake.nix";
+
+          programs.ormolu.enable = true;
+          programs.nixpkgs-fmt.enable = true;
+          programs.cabal-fmt.enable = true;
+          programs.hlint.enable = true;
+
+          # We use fourmolu
+          programs.ormolu.package = pkgs.haskellPackages.fourmolu;
+          settings.formatter.ormolu = {
+            options = [
+              "--ghc-opt"
+              "-XImportQualifiedPost"
+            ];
+          };
+        };
+
+        # Default package & app.
+        packages.default = self'.packages.haskell-template;
+        apps.default = self'.apps.haskell-template;
+
+        # Default shell.
+        devShells.default = pkgs.mkShell {
+          name = "haskell-template";
+          meta.description = "Haskell development environment";
+          # See https://zero-to-flakes.com/haskell-flake/devshell#composing-devshells
+          inputsFrom = [
+            config.haskellProjects.default.outputs.devShell
+            config.treefmt.build.devShell
+          ];
+          nativeBuildInputs = with pkgs; [
+            just
+          ];
+        };
+      };
+    };
 }
