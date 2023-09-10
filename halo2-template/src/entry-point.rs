@@ -59,7 +59,7 @@ pub async fn run_server() {
                                  &mut transcript);
           match res {
               Ok(_) => StatusCode::OK,
-              Err(e) => panic!("{:?}", e)
+              Err(e) => StatusCode::NOT_ACCEPTABLE
           }
       });
 

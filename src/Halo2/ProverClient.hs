@@ -141,7 +141,7 @@ type ProverApi = "prove" :> ReqBody '[JSON] EncodedArgument :> Post '[OctetStrea
 
 type VerifierApi = "verify"
        :> ReqBody '[JSON] (Map ColumnIndex [[[Word8]]], ByteString)
-       :> Post '[PlainText] Text
+       :> Post '[OctetStream] ByteString
 
 data EncodedArgument = EncodedArgument
   { instance_data :: Map ColumnIndex [[[Word8]]],
@@ -233,5 +233,5 @@ callVerifier ::
 callVerifier env stmt proof = do
   res <- liftIO $ runClientM (verifierClient (encodeArgumentData (stmt ^. #unStatement)) proof) env
   case res of
-    Left err -> throwError (ErrorMessage () ("verifier returned error: " <> pack (show err)))
+    Left _err -> throwError $ ErrorMessage () "verifier returned error"
     Right () -> pure ()
